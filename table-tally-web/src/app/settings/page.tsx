@@ -26,6 +26,7 @@ type EventOpt = { id: string; name: string; start_date?: string; end_date?: stri
 type SaleRow = {
   id: string;
   sku: SKUOpt;
+  units: number;
   // ...other fields not needed for filtering
 };
 
@@ -225,36 +226,44 @@ export default function SettingsPage() {
               ) : (
                 <div className="space-y-3">
                   {Array.isArray(filteredSkus) && filteredSkus.length > 0 ? (
-                    filteredSkus.map((s, idx) => (
-                      <div key={s.id} className="grid grid-cols-6 gap-2 items-center border rounded-xl p-3">
-                        <div className="col-span-2">
-                          <Label className="text-xs">Name</Label>
-                          <Input
-                            value={s.name}
-                            onChange={(e)=>{
-                              const name = e.target.value;
-                              setSkus(prev => prev.map((x,i)=> x.id===s.id ? {...x, name} : x));
-                            }}
-                          />
+                    filteredSkus.map((s, idx) => {
+                      // Calculate total units sold for this SKU
+                      const unitsSold = sales.filter(row => row.sku && row.sku.id === s.id).reduce((sum, row) => sum + (row.units || 0), 0);
+                      return (
+                        <div key={s.id} className="grid grid-cols-7 gap-2 items-center border rounded-xl p-3">
+                          <div className="col-span-2">
+                            <Label className="text-xs">Name</Label>
+                            <Input
+                              value={s.name}
+                              onChange={(e)=>{
+                                const name = e.target.value;
+                                setSkus(prev => prev.map((x,i)=> x.id===s.id ? {...x, name} : x));
+                              }}
+                            />
+                          </div>
+                          <div className="text-sm">{s.item_type}</div>
+                          <div>
+                            <Label className="text-xs">Cost/Unit</Label>
+                            <Input
+                              inputMode="decimal"
+                              value={s.default_cost ?? ''}
+                              onChange={e => {
+                                const default_cost = e.target.value;
+                                setSkus(prev => prev.map((x,i)=> x.id===s.id ? {...x, default_cost} : x));
+                              }}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Units Sold</Label>
+                            <Input value={unitsSold} readOnly tabIndex={-1} className="bg-muted/50 cursor-not-allowed" />
+                          </div>
+                          <div className="flex gap-2 justify-end col-span-2">
+                            <Button size="sm" onClick={()=>saveSku(s)}>Save</Button>
+                            <Button size="sm" variant="destructive" onClick={()=>deleteSku(s.id)}>Delete</Button>
+                          </div>
                         </div>
-                        <div className="text-sm">{s.item_type}</div>
-                        <div>
-                          <Label className="text-xs">Cost/Unit</Label>
-                          <Input
-                            inputMode="decimal"
-                            value={s.default_cost ?? ''}
-                            onChange={e => {
-                              const default_cost = e.target.value;
-                              setSkus(prev => prev.map((x,i)=> x.id===s.id ? {...x, default_cost} : x));
-                            }}
-                          />
-                        </div>
-                        <div className="flex gap-2 justify-end col-span-2">
-                          <Button size="sm" onClick={()=>saveSku(s)}>Save</Button>
-                          <Button size="sm" variant="destructive" onClick={()=>deleteSku(s.id)}>Delete</Button>
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <p className="text-sm text-muted-foreground">No SKUs yet.</p>
                   )}

@@ -1,5 +1,50 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+function NotesMenu({ row, token, API_BASE, setRows, setEditRowId, setEditRow }: any) {
+  const [notesOpen, setNotesOpen] = useState(false);
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="icon" variant="ghost" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {row.notes && row.notes.trim() && (
+            <DropdownMenuItem onClick={() => setNotesOpen(true)}>
+              View Notes
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={() => { setEditRowId(row.id); setEditRow({ ...row }); }}>
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={async () => {
+            if (!confirm("Delete this sale?")) return;
+            try {
+              const res = await fetch(`${API_BASE}/api/sales/${row.id}/`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!res.ok) throw new Error();
+              setRows((rows: any[]) => rows.filter(r => r.id !== row.id));
+            } catch {
+              alert("Failed to delete sale");
+            }
+          }} className="text-red-600 focus:text-red-700">
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Dialog open={notesOpen} onOpenChange={setNotesOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Notes</DialogTitle>
+          </DialogHeader>
+          <div className="whitespace-pre-wrap text-sm text-muted-foreground min-h-[2rem]">{row.notes || "(No notes)"}</div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 import { useUserColors } from "@/lib/userColors";
 import { useSession } from "next-auth/react";
 import {
@@ -10,8 +55,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { DialogContent, DialogHeader } from "@/components/ui/dialog";
-import { Dialog, DialogTitle, DialogTrigger } from "@radix-ui/react-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/_components/Navbar";
 import { Input } from "@/components/ui/input";
@@ -483,31 +527,8 @@ export default function SalesPage() {
                   <TableCell>{r.is_bundle ? "Y" : "N"}</TableCell>
                   <TableCell>{r.is_gift ? "Y" : "N"}</TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => { setEditRowId(r.id); setEditRow({ ...r }); }}>
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={async () => {
-                          if (!confirm("Delete this sale?")) return;
-                          try {
-                            const res = await fetch(`${API_BASE}/api/sales/${r.id}/`, {
-                              method: "DELETE",
-                              headers: { Authorization: `Bearer ${token}` },
-                            });
-                            if (!res.ok) throw new Error();
-                            setRows(rows => rows.filter(row => row.id !== r.id));
-                          } catch {
-                            alert("Failed to delete sale");
-                          }
-                        }} className="text-red-600 focus:text-red-700">
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {/* Notes dialog state */}
+                    <NotesMenu row={r} token={token} API_BASE={API_BASE} setRows={setRows} setEditRowId={setEditRowId} setEditRow={setEditRow} />
                   </TableCell>
                 </TableRow>
               );
