@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import Providers from "./providers";
 
 export const metadata: Metadata = {
-  title: "Table Tally",
-  description: "Bookkeeping for anime conventions",
+  title: "SASA-LELE",
+  description: "Bookkeeping for anime convention merchandise",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

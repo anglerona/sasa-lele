@@ -15,11 +15,17 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { CopyIcon, CheckIcon } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 import DatePicker from "@/components/ui/DatePicker";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
   // (removed duplicate top-level filter and memo logic; all hooks should be inside the component)
 
 type EventOpt = { id: string; name: string; start_date?: string; end_date?: string };
+
+
+// (removed duplicate top-level filter and memo logic; all hooks should be inside the component)
+
 
 type SaleRow = {
   id: string;
@@ -28,6 +34,9 @@ type SaleRow = {
 };
 
 export default function SettingsPage() {
+  // Track which event ID was copied for checkmark feedback
+  const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
+  const { toast } = useToast();
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
   const { data: session, status } = useSession();
   const token = (session as any)?.accessToken as string | undefined;
@@ -109,13 +118,21 @@ export default function SettingsPage() {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ name: sku.name }),
     });
-    if (!res.ok) alert(`SKU save failed (${res.status})`);
+    if (res.ok) {
+      toast({ title: "SKU saved", type: "success" });
+    } else {
+      toast({ title: "SKU save failed", description: `Status: ${res.status}`, type: "error" });
+    }
   }
   async function deleteSku(id: string) {
     if (!confirm("Delete this SKU? This will fail if it has sales.")) return;
     const res = await fetch(`${API_BASE}/api/skus/${id}/`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` }});
-    if (!res.ok) return alert(`Delete failed (${res.status})`);
+    if (!res.ok) {
+      toast({ title: "Delete failed", description: `Status: ${res.status}`, type: "error" });
+      return;
+    }
     setSkus(prev => prev.filter(s => s.id !== id));
+    toast({ title: "SKU deleted", type: "success" });
   }
 
   // --- Event handlers
@@ -123,15 +140,27 @@ export default function SettingsPage() {
     const res = await fetch(`${API_BASE}/api/events/${ev.id}/`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ name: ev.name }),
+      body: JSON.stringify({
+        name: ev.name,
+        start_date: ev.start_date || null,
+        end_date: ev.end_date || null,
+      }),
     });
-    if (!res.ok) alert(`Event save failed (${res.status})`);
+    if (res.ok) {
+      toast({ title: "Event saved", type: "success" });
+    } else {
+      toast({ title: "Event save failed", description: `Status: ${res.status}`, type: "error" });
+    }
   }
   async function deleteEvent(id: string) {
     if (!confirm("Delete this event (and its sales)?")) return;
     const res = await fetch(`${API_BASE}/api/events/${id}/?force=1`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` }});
-    if (!res.ok) return alert(`Delete failed (${res.status})`);
+    if (!res.ok) {
+      toast({ title: "Delete failed", description: `Status: ${res.status}`, type: "error" });
+      return;
+    }
     setEvents(prev => prev.filter(e => e.id !== id));
+    toast({ title: "Event deleted", type: "success" });
   }
 
 
@@ -231,7 +260,7 @@ export default function SettingsPage() {
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-muted-foreground">No SKUs with sales yet.</p>
+                    <p className="text-sm text-muted-foreground">No SKUs yet.</p>
                   )}
                 </div>
               )}
@@ -286,7 +315,33 @@ export default function SettingsPage() {
                             placeholder="YYYY-MM-DD"
                           />
                         </div>
-                        <div className="text-sm col-span-1 opacity-60">ID: {ev.id.slice(0,6)}…</div>
+                        <div className="flex flex-col gap-1 col-span-1">
+                          <Label className="text-xs">Event ID</Label>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm opacity-80" style={{userSelect:'all'}}>{ev.id}</span>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              title={copiedEventId === ev.id ? "Copied!" : "Copy Event ID"}
+                              style={{zIndex:1, position:'relative'}}
+                              onClick={e => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(ev.id);
+                                setCopiedEventId(ev.id);
+                                setTimeout(() => {
+                                  setCopiedEventId(current => current === ev.id ? null : current);
+                                }, 2000);
+                              }}
+                            >
+                              {copiedEventId === ev.id ? (
+                                <CheckIcon className="size-4 text-green-600" />
+                              ) : (
+                                <CopyIcon className="size-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
                         <div className="flex gap-2 justify-end col-span-2">
                           <Button size="sm" onClick={()=>saveEvent(ev)}>Save</Button>
                           <Button size="sm" variant="destructive" onClick={()=>deleteEvent(ev.id)}>Delete</Button>
