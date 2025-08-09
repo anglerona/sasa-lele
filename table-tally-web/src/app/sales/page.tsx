@@ -38,6 +38,8 @@ function AddSaleDialog({ token, apiBase, events, onCreated, setEvents, rows }: a
   const [priceUnit, setPriceUnit] = useState("0.00");
   const [costUnit, setCostUnit] = useState("0.00");
   const [isBundle, setIsBundle] = useState(false);
+  const [isGift, setIsGift] = useState(false);
+  const [prevPriceUnit, setPrevPriceUnit] = useState("0.00");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [showCreateSKU, setShowCreateSKU] = useState(false);
@@ -75,6 +77,7 @@ function AddSaleDialog({ token, apiBase, events, onCreated, setEvents, rows }: a
           price_unit: priceUnit || "0.00",
           cost_unit: costUnit || "0.00",
           is_bundle: isBundle,
+          is_gift: isGift,
           notes,
         }),
       });
@@ -95,6 +98,18 @@ function AddSaleDialog({ token, apiBase, events, onCreated, setEvents, rows }: a
       setErr(e.message ?? "Failed to create sale");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Handle Gift logic
+  function handleGiftChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const checked = e.target.checked;
+    setIsGift(checked);
+    if (checked) {
+      setPrevPriceUnit(priceUnit);
+      setPriceUnit("0.00");
+    } else {
+      setPriceUnit(prevPriceUnit);
     }
   }
 
@@ -156,7 +171,16 @@ function AddSaleDialog({ token, apiBase, events, onCreated, setEvents, rows }: a
             <label className="text-sm font-medium">SKU</label>
             <div className="flex flex-row gap-2 items-end">
               <div className="flex-1">
-                <Select value={skuId} onValueChange={setSkuId}>
+                <Select
+                  value={skuId}
+                  onValueChange={v => {
+                    setSkuId(v);
+                    const sku = skus.find((s: any) => s.id === v);
+                    if (sku && sku.default_cost !== undefined && sku.default_cost !== null) {
+                      setCostUnit(String(sku.default_cost));
+                    }
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select SKU" />
                   </SelectTrigger>
@@ -202,8 +226,12 @@ function AddSaleDialog({ token, apiBase, events, onCreated, setEvents, rows }: a
           {/* Price/Cost */}
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1">
-              <label className="text-sm font-medium">Price / unit</label>
-              <Input inputMode="decimal" value={priceUnit} onChange={e => setPriceUnit(e.target.value)} />
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">Price / unit</label>
+                <input type="checkbox" id="is_gift" checked={isGift} onChange={handleGiftChange} />
+                <label htmlFor="is_gift" className="text-xs">Gift</label>
+              </div>
+              <Input inputMode="decimal" value={priceUnit} onChange={e => setPriceUnit(e.target.value)} disabled={isGift} />
             </div>
             <div className="grid gap-1">
               <label className="text-sm font-medium">Cost / unit</label>
@@ -520,6 +548,7 @@ export default function SalesPage() {
                 Gross Profit
               </TableHead>
               <TableHead>Bundle</TableHead>
+              <TableHead>Gift</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -609,42 +638,64 @@ export default function SalesPage() {
                     ${r.gross_profit}
                   </TableCell>
                   <TableCell>
-                    <select
-                      value={editRow.is_bundle ? "Y" : "N"}
-                      onChange={e => setEditRow({ ...editRow, is_bundle: e.target.value === "Y" })}
-                      className="border rounded px-1"
-                    >
-                      <option value="N">N</option>
-                      <option value="Y">Y</option>
-                    </select>
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        id={`edit-bundle-${r.id}`}
+                        checked={!!editRow.is_bundle}
+                        onChange={e => setEditRow({ ...editRow, is_bundle: e.target.checked })}
+                        className="accent-primary"
+                      />
+                    </div>
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" onClick={async () => {
-                      // Save edit
-                      try {
-                        const res = await fetch(`${API_BASE}/api/sales/${r.id}/`, {
-                          method: "PATCH",
-                          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            event_id: r.event.id,
-                            sku_id: r.sku.id,
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        id={`edit-gift-${r.id}`}
+                        checked={!!editRow.is_gift}
+                        onChange={e => setEditRow({ ...editRow, is_gift: e.target.checked, price_unit: e.target.checked ? "0.00" : editRow.price_unit })}
+                        className="accent-primary"
+                      />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={async () => {
+                        // Save edit
+                        try {
+                          const patchBody = {
+                            event_id: editRow.event_id || (editRow.event && editRow.event.id) || r.event.id,
+                            sku_id: editRow.sku_id || (editRow.sku && editRow.sku.id) || r.sku.id,
                             sale_date: editRow.sale_date,
                             units: editRow.units,
                             price_unit: editRow.price_unit,
                             cost_unit: editRow.cost_unit,
-                            is_bundle: editRow.is_bundle,
-                          })
-                        });
-                        if (!res.ok) throw new Error();
-                        const updated = await res.json();
-                        setRows(rows => rows.map(row => row.id === r.id ? { ...row, ...updated } : row));
-                        setEditRowId(null);
-                        setEditRow(null);
-                      } catch {
-                        alert("Failed to save changes");
-                      }
-                    }}>Save</Button>
-                    <Button size="sm" variant="secondary" onClick={() => { setEditRowId(null); setEditRow(null); }}>Cancel</Button>
+                            is_bundle: !!editRow.is_bundle,
+                            is_gift: !!editRow.is_gift,
+                          };
+                          const res = await fetch(`${API_BASE}/api/sales/${r.id}/`, {
+                            method: "PATCH",
+                            headers: {
+                              Authorization: `Bearer ${token}`,
+                              "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify(patchBody)
+                          });
+                          if (!res.ok) {
+                            const text = await res.text();
+                            throw new Error(text || 'Failed');
+                          }
+                          const updated = await res.json();
+                          setRows(rows => rows.map(row => row.id === r.id ? { ...row, ...updated } : row));
+                          setEditRowId(null);
+                          setEditRow(null);
+                        } catch (e: any) {
+                          alert("Failed to save changes" + (e && e.message ? ": " + e.message : ""));
+                        }
+                      }}>Save</Button>
+                      <Button size="sm" variant="secondary" onClick={() => { setEditRowId(null); setEditRow(null); }}>Cancel</Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -654,12 +705,13 @@ export default function SalesPage() {
                   <TableCell className="capitalize">{r.sku.item_type}</TableCell>
                   <TableCell>{r.sku.name}</TableCell>
                   <TableCell className="text-right">{r.units}</TableCell>
-                  <TableCell className="text-right">${r.price_unit}</TableCell>
-                  <TableCell className="text-right">${r.cost_unit}</TableCell>
-                  <TableCell className="text-right">${r.revenue}</TableCell>
-                  <TableCell className="text-right">${r.cogs}</TableCell>
-                  <TableCell className={`text-right font-medium ${gp > 0 ? "text-emerald-700" : "text-red-700"}`}>${r.gross_profit}</TableCell>
+                  <TableCell className="text-right">{'$'+r.price_unit}</TableCell>
+                  <TableCell className={"text-right font-medium " + (gp > 0 ? "text-emerald-700" : "text-red-700")}>{"$" + r.gross_profit}</TableCell>
+                  <TableCell className="text-right">{'$'+r.revenue}</TableCell>
+                  <TableCell className="text-right">{'$'+r.cogs}</TableCell>
+                  <TableCell className={`text-right font-medium ${gp > 0 ? "text-emerald-700" : "text-red-700"}`}>{'$'+r.gross_profit}</TableCell>
                   <TableCell>{r.is_bundle ? "Y" : "N"}</TableCell>
+                  <TableCell>{r.is_gift ? "Y" : "N"}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

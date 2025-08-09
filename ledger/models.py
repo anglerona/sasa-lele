@@ -2,8 +2,8 @@ import mongoengine as me
 
 class Event(me.Document):
     name = me.StringField(required=True)          # e.g., "Anime North 2025"
-    start_date = me.DateField(required=True)
-    end_date = me.DateField(required=True)
+    start_date = me.DateField(required=False, null=True)
+    end_date = me.DateField(required=False, null=True)
     meta = {"collection": "events", "indexes": ["start_date", "end_date", "name"]}
 
 class SKU(me.Document):
@@ -21,6 +21,7 @@ class SaleLine(me.Document):
     price_unit = me.Decimal128Field(precision=2, required=True)   # entered
     cost_unit = me.Decimal128Field(precision=2, required=True)    # entered
     is_bundle = me.BooleanField(default=False)                     # entered (Y/N)
+    is_gift = me.BooleanField(default=False)                       # entered (Y/N)
     notes = me.StringField()
     meta = {
         "collection": "sale_lines",

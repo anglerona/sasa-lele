@@ -19,8 +19,8 @@ class ObjectIdField(serializers.Field):
 class EventSerializer(serializers.Serializer):
     id = ObjectIdField(read_only=True)
     name = serializers.CharField()
-    start_date = serializers.DateField()
-    end_date = serializers.DateField()
+    start_date = serializers.DateField(required=False, allow_null=True)
+    end_date = serializers.DateField(required=False, allow_null=True)
     def create(self, data): return Event(**data).save()
 
 class SKUSerializer(serializers.Serializer):
@@ -51,6 +51,7 @@ class SaleLineSerializer(serializers.Serializer):
     price_unit = serializers.DecimalField(max_digits=10, decimal_places=2)
     cost_unit = serializers.DecimalField(max_digits=10, decimal_places=2)
     is_bundle = serializers.BooleanField(default=False)
+    is_gift = serializers.BooleanField(default=False)
     notes = serializers.CharField(required=False, allow_blank=True)
 
     # derived (read-only)
@@ -74,6 +75,7 @@ class SaleLineSerializer(serializers.Serializer):
             "price_unit": str(instance.price_unit),
             "cost_unit": str(instance.cost_unit),
             "is_bundle": instance.is_bundle,
+            "is_gift": getattr(instance, "is_gift", False),
             "notes": instance.notes or "",
         }
         price = Decimal(str(instance.price_unit))

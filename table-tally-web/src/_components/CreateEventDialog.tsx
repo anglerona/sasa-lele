@@ -23,23 +23,26 @@ export default function CreateEventDialog({ token, apiBase, onCreated, trigger }
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
-  const canSave = Boolean(token) && Boolean(name.trim()) && Boolean(startDate) && Boolean(endDate);
+  const canSave = Boolean(token) && Boolean(name.trim());
 
   async function submit() {
     if (!canSave) return;
     setSaving(true);
     setErr(null);
     try {
+      const body: any = { name };
+      if (startDate) body.start_date = startDate;
+      if (endDate) body.end_date = endDate;
       const res = await fetch(`${apiBase}/api/events/`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, start_date: startDate, end_date: endDate }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -49,8 +52,8 @@ export default function CreateEventDialog({ token, apiBase, onCreated, trigger }
       onCreated(event);
       setOpen(false);
       setName("");
-      setStartDate(today);
-      setEndDate(today);
+      setStartDate("");
+      setEndDate("");
       setErr(null);
     } catch (e: any) {
       setErr(e.message ?? "Failed to create event");
@@ -77,12 +80,12 @@ export default function CreateEventDialog({ token, apiBase, onCreated, trigger }
             <Input value={name} onChange={e => { setName(e.target.value); if (err) setErr(null); }} placeholder="e.g. Anime Expo 2025" />
           </div>
           <div className="grid gap-1">
-            <Label>Start Date</Label>
-            <DatePicker value={startDate} onChange={setStartDate} placeholder="Pick a start date" />
+            <Label>Start Date (optional)</Label>
+            <DatePicker value={startDate} onChange={setStartDate} placeholder="Pick a start date (optional)" />
           </div>
           <div className="grid gap-1">
-            <Label>End Date</Label>
-            <DatePicker value={endDate} onChange={setEndDate} placeholder="Pick an end date" />
+            <Label>End Date (optional)</Label>
+            <DatePicker value={endDate} onChange={setEndDate} placeholder="Pick an end date (optional)" />
           </div>
         </div>
         <DialogFooter>
