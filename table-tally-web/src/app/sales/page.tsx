@@ -537,7 +537,7 @@ export default function SalesPage() {
               >
                 Units
               </TableHead>
-              <TableHead className="text-right">Price/Unit</TableHead>
+              <TableHead className="text-right">Sale Price/Unit</TableHead>
               <TableHead className="text-right">Cost/Unit</TableHead>
               <TableHead className="text-right">Revenue</TableHead>
               <TableHead className="text-right">COGS</TableHead>
@@ -664,34 +664,30 @@ export default function SalesPage() {
                       <Button size="sm" onClick={async () => {
                         // Save edit
                         try {
-                          const patchBody = {
-                            event_id: editRow.event_id || (editRow.event && editRow.event.id) || r.event.id,
-                            sku_id: editRow.sku_id || (editRow.sku && editRow.sku.id) || r.sku.id,
-                            sale_date: editRow.sale_date,
-                            units: editRow.units,
-                            price_unit: editRow.price_unit,
-                            cost_unit: editRow.cost_unit,
-                            is_bundle: !!editRow.is_bundle,
-                            is_gift: !!editRow.is_gift,
-                          };
                           const res = await fetch(`${API_BASE}/api/sales/${r.id}/`, {
                             method: "PATCH",
                             headers: {
                               Authorization: `Bearer ${token}`,
                               "Content-Type": "application/json"
                             },
-                            body: JSON.stringify(patchBody)
+                            body: JSON.stringify({
+                              event_id: editRow.event_id || editRow.event?.id || r.event.id,
+                              sku_id: editRow.sku_id || editRow.sku?.id || r.sku.id,
+                              sale_date: editRow.sale_date,
+                              units: editRow.units,
+                              price_unit: editRow.price_unit,
+                              cost_unit: editRow.cost_unit,
+                              is_bundle: editRow.is_bundle,
+                              is_gift: editRow.is_gift,
+                            })
                           });
-                          if (!res.ok) {
-                            const text = await res.text();
-                            throw new Error(text || 'Failed');
-                          }
+                          if (!res.ok) throw new Error();
                           const updated = await res.json();
                           setRows(rows => rows.map(row => row.id === r.id ? { ...row, ...updated } : row));
                           setEditRowId(null);
                           setEditRow(null);
-                        } catch (e: any) {
-                          alert("Failed to save changes" + (e && e.message ? ": " + e.message : ""));
+                        } catch {
+                          alert("Failed to save changes");
                         }
                       }}>Save</Button>
                       <Button size="sm" variant="secondary" onClick={() => { setEditRowId(null); setEditRow(null); }}>Cancel</Button>
@@ -706,7 +702,7 @@ export default function SalesPage() {
                   <TableCell>{r.sku.name}</TableCell>
                   <TableCell className="text-right">{r.units}</TableCell>
                   <TableCell className="text-right">{'$'+r.price_unit}</TableCell>
-                  <TableCell className={"text-right font-medium " + (gp > 0 ? "text-emerald-700" : "text-red-700")}>{"$" + r.gross_profit}</TableCell>
+                  <TableCell className="text-right">{'$'+r.cost_unit}</TableCell>
                   <TableCell className="text-right">{'$'+r.revenue}</TableCell>
                   <TableCell className="text-right">{'$'+r.cogs}</TableCell>
                   <TableCell className={`text-right font-medium ${gp > 0 ? "text-emerald-700" : "text-red-700"}`}>{'$'+r.gross_profit}</TableCell>
