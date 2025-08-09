@@ -21,6 +21,9 @@ class SaleLine(me.Document):
     price_unit = me.Decimal128Field(precision=2, required=True)   # entered
     cost_unit = me.Decimal128Field(precision=2, required=True)    # entered
     is_bundle = me.BooleanField(default=False)                     # entered (Y/N)
+    bundle_id = me.StringField(required=False, null=True)          # bundle tracking
+    bundle_size = me.IntField(required=False, null=True)           # number of items in bundle
+    bundle_price = me.Decimal128Field(precision=2, required=False, null=True) # total price for bundle
     is_gift = me.BooleanField(default=False)                       # entered (Y/N)
     notes = me.StringField()
     meta = {
@@ -29,5 +32,6 @@ class SaleLine(me.Document):
             "sale_date", "event", "sku",
             ("event", "sale_date"),
             ("event", "sku"),
+            "bundle_id",
         ]
     }

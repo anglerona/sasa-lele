@@ -19,12 +19,8 @@ import { CopyIcon, CheckIcon } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import DatePicker from "@/components/ui/DatePicker";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-  // (removed duplicate top-level filter and memo logic; all hooks should be inside the component)
 
 type EventOpt = { id: string; name: string; start_date?: string; end_date?: string };
-
-
-// (removed duplicate top-level filter and memo logic; all hooks should be inside the component)
 
 
 type SaleRow = {

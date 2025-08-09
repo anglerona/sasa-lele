@@ -22,253 +22,8 @@ import { MoreVertical } from "lucide-react";
 import CreateSKUDialog from "@/_components/CreateSKUDialog";
 import CreateEventDialog from "@/_components/CreateEventDialog";
 import DatePicker from "@/components/ui/DatePicker";
+import AddSaleDialog from "@/_components/AddSaleDialog";
 
-// --- AddSaleDialog component ---
-// NOTE: You must import all the following components for this to work:
-// Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter, Button, Input, Label, Checkbox, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, CreateSKUDialog, EventSelectWithCreate, currency
-
-function AddSaleDialog({ token, apiBase, events, onCreated, setEvents, rows }: any) {
-  const [open, setOpen] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [skus, setSkus] = useState<any[]>([]);
-  const [skuId, setSkuId] = useState("");
-  const [eventId, setEventId] = useState("");
-  const [saleDate, setSaleDate] = useState("");
-  const [units, setUnits] = useState(1);
-  const [priceUnit, setPriceUnit] = useState("0.00");
-  const [costUnit, setCostUnit] = useState("0.00");
-  const [isBundle, setIsBundle] = useState(false);
-  const [isGift, setIsGift] = useState(false);
-  const [prevPriceUnit, setPrevPriceUnit] = useState("0.00");
-  const [notes, setNotes] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showCreateSKU, setShowCreateSKU] = useState(false);
-  const canSubmit = skuId && eventId && saleDate && units > 0;
-  // Only show SKUs that are used in sales (for dropdown)
-  const usedSkuIds = useMemo(() => new Set(rows.map((r: any) => r.sku?.id).filter(Boolean)), [rows]);
-  const filteredSkus = useMemo(() => skus.filter((s) => usedSkuIds.has(s.id)), [skus, usedSkuIds]);
-
-  useEffect(() => {
-    if (!open || !token) return;
-    fetch(`${apiBase}/api/skus/`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then(setSkus)
-      .catch(() => setErr("Failed to load SKUs"));
-  }, [open, token, apiBase]);
-
-  async function submit() {
-    if (!canSubmit) return;
-    setLoading(true);
-    setErr(null);
-    try {
-      const res = await fetch(`${apiBase}/api/sales/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          event_id: eventId,
-          sku_id: skuId,
-          sale_date: saleDate, // YYYY-MM-DD
-          units,
-          price_unit: priceUnit || "0.00",
-          cost_unit: costUnit || "0.00",
-          is_bundle: isBundle,
-          is_gift: isGift,
-          notes,
-        }),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Create failed (${res.status}) ${text}`);
-      }
-      const row = await res.json();
-      onCreated(row); // prepend into table
-      setOpen(false); // close dialog
-      // reset minimal fields for rapid entry
-      setUnits(1);
-      setPriceUnit("0.00");
-      setCostUnit("0.00");
-      setIsBundle(false);
-      setNotes("");
-    } catch (e: any) {
-      setErr(e.message ?? "Failed to create sale");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Handle Gift logic
-  function handleGiftChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const checked = e.target.checked;
-    setIsGift(checked);
-    if (checked) {
-      setPrevPriceUnit(priceUnit);
-      setPriceUnit("0.00");
-    } else {
-      setPriceUnit(prevPriceUnit);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>Add Sale</Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add Sale</DialogTitle>
-        </DialogHeader>
-
-        {err && (
-          <div className="text-sm text-red-600 border border-red-200 bg-red-50 p-2 rounded">
-            {err}
-          </div>
-        )}
-
-        <div className="grid gap-3">
-          {/* Event with create button */}
-          <div className="grid gap-1">
-            <label className="text-sm font-medium">Event</label>
-            <div className="flex flex-row gap-2 items-end">
-              <div className="flex-1">
-                <Select value={eventId} onValueChange={setEventId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select event" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {events.map((ev: any) => (
-                      <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <CreateEventDialog
-                token={token}
-                apiBase={apiBase}
-                onCreated={ev => {
-                  setEvents((prev: any) => [...prev, ev]);
-                  setEventId(ev.id);
-                }}
-                trigger={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="px-2"
-                  >
-                    Add Event&nbsp;+
-                  </Button>
-                }
-              />
-            </div>
-          </div>
-
-          {/* SKU */}
-          <div className="grid gap-1">
-            <label className="text-sm font-medium">SKU</label>
-            <div className="flex flex-row gap-2 items-end">
-              <div className="flex-1">
-                <Select
-                  value={skuId}
-                  onValueChange={v => {
-                    setSkuId(v);
-                    const sku = skus.find((s: any) => s.id === v);
-                    if (sku && sku.default_cost !== undefined && sku.default_cost !== null) {
-                      setCostUnit(String(sku.default_cost));
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select SKU" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {skus.map((s: any) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <CreateSKUDialog
-                token={token}
-                apiBase={apiBase}
-                onCreated={sku => {
-                  setSkus((prev: any) => prev.find((s: any) => s.id === sku.id) ? prev : [...prev, sku]);
-                  setSkuId(sku.id);
-                }}
-                trigger={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="px-2"
-                  >
-                    Add SKU&nbsp;+
-                  </Button>
-                }
-              />
-            </div>
-          </div>
-
-          {/* Date */}
-          <div className="grid gap-1">
-            <label className="text-sm font-medium">Date</label>
-            <DatePicker value={saleDate} onChange={setSaleDate} placeholder="Pick a date" />
-          </div>
-
-          {/* Units */}
-          <div className="grid gap-1">
-            <label className="text-sm font-medium">Units</label>
-            <Input type="number" min={1} value={units} onChange={e => setUnits(Number(e.target.value) || 1)} />
-          </div>
-
-          {/* Price/Cost */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1">
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium">Price / unit</label>
-                <input type="checkbox" id="is_gift" checked={isGift} onChange={handleGiftChange} />
-                <label htmlFor="is_gift" className="text-xs">Gift</label>
-              </div>
-              <Input inputMode="decimal" value={priceUnit} onChange={e => setPriceUnit(e.target.value)} disabled={isGift} />
-            </div>
-            <div className="grid gap-1">
-              <label className="text-sm font-medium">Cost / unit</label>
-              <Input inputMode="decimal" value={costUnit} onChange={e => setCostUnit(e.target.value)} />
-            </div>
-          </div>
-
-          {/* Bundle + Notes */}
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="is_bundle" checked={isBundle} onChange={e => setIsBundle(e.target.checked)} />
-            <label htmlFor="is_bundle">Bundle</label>
-          </div>
-          <div className="grid gap-1">
-            <label className="text-sm font-medium">Notes (optional)</label>
-            <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. 3 keychain deal" />
-          </div>
-        </div>
-
-        {/* Preview row math */}
-        <div className="text-xs text-muted-foreground mt-2">
-          Preview — Revenue: ${Number(units) * Number(priceUnit)}
-          {" · "}COGS: ${Number(units) * Number(costUnit)}
-          {" · "}Gross Profit: ${Number(units) * (Number(priceUnit) - Number(costUnit))}
-        </div>
-
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="secondary" onClick={() => setOpen(false)} disabled={loading} type="button">
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={!canSubmit || loading} type="button">
-            {loading ? "Saving..." : "Save"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export default function SalesPage() {
   const [editRowId, setEditRowId] = useState<string | null>(null);
@@ -405,8 +160,6 @@ export default function SalesPage() {
             apiBase={API_BASE}
             events={events}
             onCreated={(row: any) => setRows((prev) => [row, ...prev])}
-            setEvents={setEvents}
-            rows={rows}
           />
           {status !== "authenticated" && (
             <Button variant="secondary" onClick={() => (location.href = "/login")}> 
@@ -552,11 +305,32 @@ export default function SalesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sorted.map((r: any) => {
-              const isEditing = editRowId === r.id;
-              const gp = Number(isEditing ? editRow?.gross_profit : r.gross_profit);
-              return isEditing ? (
-                <TableRow key={r.id} className={gp < 0 ? "bg-red-50" : ""}>
+            {/* Alternating bundle highlight logic */}
+            {(() => {
+              // Group rows by bundle_id, assign alternating highlight classes
+              let bundleColorMap: Record<string, string> = {};
+              let colorIdx = 0;
+              const bundleColors = ["bg-blue-50", "bg-green-50"]; // You can adjust these colors
+              // First, collect all unique bundle_ids in order of appearance
+              const bundleOrder: string[] = [];
+              sorted.forEach((row: any) => {
+                if (row.is_bundle && row.bundle_id && !bundleOrder.includes(row.bundle_id)) {
+                  bundleOrder.push(row.bundle_id);
+                }
+              });
+              // Assign colors
+              bundleOrder.forEach((bid, i) => {
+                bundleColorMap[bid] = bundleColors[i % bundleColors.length];
+              });
+              return sorted.map((r: any) => {
+                const isEditing = editRowId === r.id;
+                const gp = Number(isEditing ? editRow?.gross_profit : r.gross_profit);
+                let rowClass = gp < 0 ? "bg-red-50" : "";
+                if (r.is_bundle && r.bundle_id) {
+                  rowClass += " " + (bundleColorMap[r.bundle_id] || "");
+                }
+                return isEditing ? (
+                  <TableRow key={r.id} className={rowClass.trim()}>
                   <TableCell>
                     <Input
                       type="date"
@@ -695,9 +469,9 @@ export default function SalesPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                <TableRow key={r.id} className={gp < 0 ? "bg-red-50" : ""}>
+                <TableRow key={r.id} className={rowClass.trim()}>
                   <TableCell>{r.sale_date}</TableCell>
-                  <TableCell>{r.event.name}</TableCell>
+                  <TableCell>{r.event && typeof r.event === 'object' && 'name' in r.event ? r.event.name : ''}</TableCell>
                   <TableCell className="capitalize">{r.sku.item_type}</TableCell>
                   <TableCell>{r.sku.name}</TableCell>
                   <TableCell className="text-right">{r.units}</TableCell>
@@ -737,7 +511,8 @@ export default function SalesPage() {
                   </TableCell>
                 </TableRow>
               );
-            })}
+              });
+            })()}
             {sorted.length === 0 && (
               <TableRow>
                 <TableCell

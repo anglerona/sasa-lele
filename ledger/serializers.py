@@ -51,6 +51,9 @@ class SaleLineSerializer(serializers.Serializer):
     price_unit = serializers.DecimalField(max_digits=10, decimal_places=2)
     cost_unit = serializers.DecimalField(max_digits=10, decimal_places=2)
     is_bundle = serializers.BooleanField(default=False)
+    bundle_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    bundle_size = serializers.IntegerField(required=False, allow_null=True)
+    bundle_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     is_gift = serializers.BooleanField(default=False)
     notes = serializers.CharField(required=False, allow_blank=True)
 
@@ -75,6 +78,9 @@ class SaleLineSerializer(serializers.Serializer):
             "price_unit": str(instance.price_unit),
             "cost_unit": str(instance.cost_unit),
             "is_bundle": instance.is_bundle,
+            "bundle_id": getattr(instance, "bundle_id", None),
+            "bundle_size": getattr(instance, "bundle_size", None),
+            "bundle_price": str(getattr(instance, "bundle_price", "")) if getattr(instance, "bundle_price", None) is not None else None,
             "is_gift": getattr(instance, "is_gift", False),
             "notes": instance.notes or "",
         }
