@@ -3,6 +3,7 @@ from django.urls import path
 from core.views import HealthView, EventDetail, SKUDetail
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from ledger.views import EventListCreate, SKUListCreate, SaleListCreate, AnalyticsTopBottom, AnalyticsSummary, AnalyticsHypo
+from ledger.views import SaleDetail
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -15,6 +16,7 @@ urlpatterns = [
     path("api/skus/", SKUListCreate.as_view()),
     path("api/skus/<str:pk>/", SKUDetail.as_view()),
     path("api/sales/", SaleListCreate.as_view()),
+    path("api/sales/<str:pk>/", SaleDetail.as_view()),
 
     path("api/analytics/top-bottom", AnalyticsTopBottom.as_view()),
     path("api/analytics/summary", AnalyticsSummary.as_view()),

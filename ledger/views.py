@@ -17,10 +17,17 @@ class EventListCreate(APIView):
 
 
 class SKUListCreate(APIView):
-    def get(self, req): return Response(SKUSerializer(SKU.objects, many=True).data)
+    def get(self, req):
+        return Response(SKUSerializer(SKU.objects, many=True).data)
     def post(self, req):
-        s = SKUSerializer(data=req.data); s.is_valid(raise_exception=True)
-        return Response(SKUSerializer(s.save()).data, status=status.HTTP_201_CREATED)
+        from mongoengine.errors import NotUniqueError
+        s = SKUSerializer(data=req.data)
+        s.is_valid(raise_exception=True)
+        try:
+            sku = s.save()
+        except NotUniqueError:
+            return Response({"detail": "A SKU with this name and type already exists."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(SKUSerializer(sku).data, status=status.HTTP_201_CREATED)
 
 class SaleListCreate(APIView):
     def get(self, req):
@@ -30,22 +37,59 @@ class SaleListCreate(APIView):
                 qs = qs.filter(event=ObjectId(e))
             except Exception:
                 return Response([], status=200)
-        if t := req.GET.get("type"): qs = qs.filter(sku__item_type=t)
 
         from calendar import monthrange
         y = req.GET.get("year")
         m = req.GET.get("month")
         if y and not m:
-            y = int(y)
-            qs = qs.filter(sale_date__gte=date(y,1,1), sale_date__lte=date(y,12,31))
+            try:
+                y = int(y)
+                qs = qs.filter(sale_date__gte=date(y,1,1), sale_date__lte=date(y,12,31))
+            except Exception:
+                return Response([], status=200)
         if y and m:
-            y = int(y); m = int(m)
-            last_day = monthrange(y, m)[1]
-            qs = qs.filter(sale_date__gte=date(y,m,1), sale_date__lte=date(y,m,last_day))
+            try:
+                y = int(y); m = int(m)
+                last_day = monthrange(y, m)[1]
+                qs = qs.filter(sale_date__gte=date(y,m,1), sale_date__lte=date(y,m,last_day))
+            except Exception:
+                return Response([], status=200)
 
-        if b := req.GET.get("bundle"):
-            qs = qs.filter(is_bundle=(b.lower() in ("1","true","yes","y")))
-        qs = qs.order_by("-sale_date")
+        # Filter by SKU
+        sku = req.GET.get("sku")
+        if sku:
+            try:
+                qs = qs.filter(sku=ObjectId(sku))
+            except Exception:
+                return Response([], status=200)
+
+        # Filter by type in Python, since MongoEngine can't join on ReferenceField
+        t = req.GET.get("type")
+        if t:
+            valid_types = {"print", "keychain", "sticker", "other"}
+            if t not in valid_types:
+                return Response([], status=200)
+            qs = [sale for sale in qs if sale.sku and sale.sku.item_type == t]
+
+        # Filter by bundle in Python if qs is a list, otherwise use queryset filter
+
+
+        b = req.GET.get("bundle")
+        if b:
+            bundle_val = b.lower() in ("1","true","yes","y")
+            if isinstance(qs, list):
+                qs = [sale for sale in qs if sale.is_bundle == bundle_val]
+            else:
+                try:
+                    qs = qs.filter(is_bundle=bundle_val)
+                except Exception:
+                    return Response([], status=200)
+
+        # Order by sale_date descending
+        if not isinstance(qs, list):
+            qs = qs.order_by("-sale_date")
+        else:
+            qs = sorted(qs, key=lambda s: s.sale_date, reverse=True)
         return Response(SaleLineSerializer(qs, many=True).data)
 
     def post(self, req):
@@ -53,6 +97,33 @@ class SaleListCreate(APIView):
         s.is_valid(raise_exception=True)
         obj = s.save()
         return Response(SaleLineSerializer(obj).data, status=status.HTTP_201_CREATED)
+
+from django.http import Http404
+
+class SaleDetail(APIView):
+    def get_object(self, pk):
+        try:
+            return SaleLine.objects.get(pk=pk)
+        except SaleLine.DoesNotExist:
+            raise Http404
+
+    def get(self, request, pk):
+        sale = self.get_object(pk)
+        serializer = SaleLineSerializer(sale)
+        return Response(serializer.data)
+
+    def patch(self, request, pk):
+        sale = self.get_object(pk)
+        serializer = SaleLineSerializer(sale, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        sale = self.get_object(pk)
+        sale.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 # --- Analytics helpers ---
 def _calc_row(sl: SaleLine):

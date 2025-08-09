@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useUserColors } from "@/lib/userColors";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import {
   Table,
   TableBody,
@@ -10,73 +10,42 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { DialogContent, DialogHeader } from "@/components/ui/dialog";
+import { Dialog, DialogTitle, DialogTrigger } from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
-import CreateSKUDialog from "@/_components/CreateSKUDialog";
-
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "@/components/ui/select";
+import Navbar from "@/_components/Navbar";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { SKUOpt } from "@/lib/types";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { MoreVertical } from "lucide-react";
+import CreateSKUDialog from "@/_components/CreateSKUDialog";
+import CreateEventDialog from "@/_components/CreateEventDialog";
+import DatePicker from "@/components/ui/DatePicker";
 
-function currency(n: string | number) {
-  const num = typeof n === "number" ? n : Number(n);
-  return isNaN(num) ? "0.00" : num.toFixed(2);
-}
+// --- AddSaleDialog component ---
+// NOTE: You must import all the following components for this to work:
+// Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogFooter, Button, Input, Label, Checkbox, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, CreateSKUDialog, EventSelectWithCreate, currency
 
-type EventOpt = { id: string; name: string };
-type SKUOpt = { id: string; name: string; item_type: string };
-
-function AddSaleDialog({
-  token,
-  apiBase,
-  events,
-  onCreated,
-}: {
-  token?: string;
-  apiBase: string;
-  events: EventOpt[];
-  onCreated: (row: any) => void;
-}) {
+function AddSaleDialog({ token, apiBase, events, onCreated, setEvents, rows }: any) {
   const [open, setOpen] = useState(false);
-  const [skus, setSkus] = useState<SKUOpt[]>([]);
-  const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  // form state
-  const [eventId, setEventId] = useState("");
+  const [skus, setSkus] = useState<any[]>([]);
   const [skuId, setSkuId] = useState("");
+  const [eventId, setEventId] = useState("");
   const [saleDate, setSaleDate] = useState("");
   const [units, setUnits] = useState(1);
   const [priceUnit, setPriceUnit] = useState("0.00");
   const [costUnit, setCostUnit] = useState("0.00");
   const [isBundle, setIsBundle] = useState(false);
   const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showCreateSKU, setShowCreateSKU] = useState(false);
+  const canSubmit = skuId && eventId && saleDate && units > 0;
+  // Only show SKUs that are used in sales (for dropdown)
+  const usedSkuIds = useMemo(() => new Set(rows.map((r: any) => r.sku?.id).filter(Boolean)), [rows]);
+  const filteredSkus = useMemo(() => skus.filter((s) => usedSkuIds.has(s.id)), [skus, usedSkuIds]);
 
-  // ✅ this must live inside the component so it can use the setters
-  function onSkuCreated(sku: any) {
-    setSkus((prev) =>
-      prev.find((s) => s.id === sku.id) ? prev : [...prev, sku]
-    );
-    setSkuId(sku.id);
-    if (sku.default_price) setPriceUnit(String(sku.default_price));
-    if (sku.default_cost) setCostUnit(String(sku.default_cost));
-  }
-
-  // load SKUs when dialog opens
   useEffect(() => {
     if (!open || !token) return;
     fetch(`${apiBase}/api/skus/`, {
@@ -86,8 +55,6 @@ function AddSaleDialog({
       .then(setSkus)
       .catch(() => setErr("Failed to load SKUs"));
   }, [open, token, apiBase]);
-
-  const canSubmit = !!token && !!eventId && !!skuId && !!saleDate && units > 0;
 
   async function submit() {
     if (!canSubmit) return;
@@ -136,7 +103,7 @@ function AddSaleDialog({
       <DialogTrigger asChild>
         <Button>Add Sale</Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Sale</DialogTitle>
         </DialogHeader>
@@ -148,156 +115,136 @@ function AddSaleDialog({
         )}
 
         <div className="grid gap-3">
-          {/* Event */}
+          {/* Event with create button */}
           <div className="grid gap-1">
-            <Label>Event</Label>
-            <Select value={eventId} onValueChange={setEventId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select event" />
-              </SelectTrigger>
-              <SelectContent>
-                {events.map((e) => (
-                  <SelectItem key={e.id} value={e.id}>
-                    {e.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* SKU */}
-          <div className="grid gap-1">
-            <div className="flex items-center justify-between">
-              <Label>SKU</Label>
-              <CreateSKUDialog
+            <label className="text-sm font-medium">Event</label>
+            <div className="flex flex-row gap-2 items-end">
+              <div className="flex-1">
+                <Select value={eventId} onValueChange={setEventId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select event" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {events.map((ev: any) => (
+                      <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <CreateEventDialog
                 token={token}
                 apiBase={apiBase}
-                onCreated={onSkuCreated}
+                onCreated={ev => {
+                  setEvents((prev: any) => [...prev, ev]);
+                  setEventId(ev.id);
+                }}
                 trigger={
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-8 px-2 text-xs"
+                    className="px-2"
                   >
-                    New SKU
+                    Add Event&nbsp;+
                   </Button>
                 }
               />
             </div>
-            <Select
-              value={skuId}
-              onValueChange={(v) => {
-                setSkuId(v);
-                const sku = skus.find((s) => s.id === v);
-                if (sku) {
-                  // optionally prefill defaults
-                  // if (sku.default_price) setPriceUnit(String(sku.default_price));
-                  // if (sku.default_cost) setCostUnit(String(sku.default_cost));
+          </div>
+
+          {/* SKU */}
+          <div className="grid gap-1">
+            <label className="text-sm font-medium">SKU</label>
+            <div className="flex flex-row gap-2 items-end">
+              <div className="flex-1">
+                <Select value={skuId} onValueChange={setSkuId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select SKU" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {skus.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <CreateSKUDialog
+                token={token}
+                apiBase={apiBase}
+                onCreated={sku => {
+                  setSkus((prev: any) => prev.find((s: any) => s.id === sku.id) ? prev : [...prev, sku]);
+                  setSkuId(sku.id);
+                }}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="px-2"
+                  >
+                    Add SKU&nbsp;+
+                  </Button>
                 }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select SKU" />
-              </SelectTrigger>
-              <SelectContent>
-                {skus.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name}{" "}
-                    <span className="text-muted-foreground">
-                      ({s.item_type})
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Date + Units */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1">
-              <Label>Sale date</Label>
-              <Input
-                type="date"
-                value={saleDate}
-                onChange={(e) => setSaleDate(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-1">
-              <Label>Units</Label>
-              <Input
-                type="number"
-                min={1}
-                value={units}
-                onChange={(e) => setUnits(Number(e.target.value) || 1)}
               />
             </div>
           </div>
 
-          {/* Prices */}
+          {/* Date */}
+          <div className="grid gap-1">
+            <label className="text-sm font-medium">Date</label>
+            <DatePicker value={saleDate} onChange={setSaleDate} placeholder="Pick a date" />
+          </div>
+
+          {/* Units */}
+          <div className="grid gap-1">
+            <label className="text-sm font-medium">Units</label>
+            <Input type="number" min={1} value={units} onChange={e => setUnits(Number(e.target.value) || 1)} />
+          </div>
+
+          {/* Price/Cost */}
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1">
-              <Label>Price / unit</Label>
-              <Input
-                inputMode="decimal"
-                value={priceUnit}
-                onChange={(e) => setPriceUnit(e.target.value)}
-              />
+              <label className="text-sm font-medium">Price / unit</label>
+              <Input inputMode="decimal" value={priceUnit} onChange={e => setPriceUnit(e.target.value)} />
             </div>
             <div className="grid gap-1">
-              <Label>Cost / unit</Label>
-              <Input
-                inputMode="decimal"
-                value={costUnit}
-                onChange={(e) => setCostUnit(e.target.value)}
-              />
+              <label className="text-sm font-medium">Cost / unit</label>
+              <Input inputMode="decimal" value={costUnit} onChange={e => setCostUnit(e.target.value)} />
             </div>
           </div>
 
           {/* Bundle + Notes */}
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="is_bundle"
-              checked={isBundle}
-              onCheckedChange={(v) => setIsBundle(Boolean(v))}
-            />
-            <Label htmlFor="is_bundle">Bundle</Label>
+            <input type="checkbox" id="is_bundle" checked={isBundle} onChange={e => setIsBundle(e.target.checked)} />
+            <label htmlFor="is_bundle">Bundle</label>
           </div>
           <div className="grid gap-1">
-            <Label>Notes (optional)</Label>
-            <Input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. 3 keychain deal"
-            />
+            <label className="text-sm font-medium">Notes (optional)</label>
+            <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. 3 keychain deal" />
           </div>
         </div>
 
         {/* Preview row math */}
-        <div className="text-xs text-muted-foreground">
-          Preview — Revenue: ${currency(Number(units) * Number(priceUnit))}
-          {" · "}COGS: ${currency(Number(units) * Number(costUnit))}
-          {" · "}Gross Profit: $
-          {currency(Number(units) * (Number(priceUnit) - Number(costUnit)))}
+        <div className="text-xs text-muted-foreground mt-2">
+          Preview — Revenue: ${Number(units) * Number(priceUnit)}
+          {" · "}COGS: ${Number(units) * Number(costUnit)}
+          {" · "}Gross Profit: ${Number(units) * (Number(priceUnit) - Number(costUnit))}
         </div>
 
-        <DialogFooter>
-          <Button
-            variant="secondary"
-            onClick={() => setOpen(false)}
-            disabled={loading}
-          >
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="secondary" onClick={() => setOpen(false)} disabled={loading} type="button">
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!canSubmit || loading}>
+          <Button onClick={submit} disabled={!canSubmit || loading} type="button">
             {loading ? "Saving..." : "Save"}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
 
 export default function SalesPage() {
+  const [editRowId, setEditRowId] = useState<string | null>(null);
+  const [editRow, setEditRow] = useState<any | null>(null);
   // Apply user color settings globally
   useUserColors();
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
@@ -305,12 +252,17 @@ export default function SalesPage() {
   const token = (session as any)?.accessToken as string | undefined;
 
   // filters
-  const [events, setEvents] = useState<Array<{ id: string; name: string }>>([]);
-  const [eventId, setEventId] = useState("");
-  const [year, setYear] = useState("");
-  const [month, setMonth] = useState("");
-  const [type, setType] = useState("");
-  const [bundle, setBundle] = useState("");
+  const [events, setEvents] = useState<Array<{ id: string; name: string; start_date?: string }>>([]);
+  const [eventId, setEventId] = useState("all");
+  const [year, setYear] = useState("all");
+  const [type, setType] = useState("all");
+  const [bundle, setBundle] = useState("all");
+  const [skus, setSkus] = useState<SKUOpt[]>([]);
+  const [rows, setRows] = useState<SaleRow[]>([]);
+  // Only show SKUs that are used in sales (for filter bar)
+  const usedSkuIds = useMemo(() => new Set(rows.map((r: any) => r.sku?.id).filter(Boolean)), [rows]);
+  const filteredSkus = useMemo(() => skus.filter(s => usedSkuIds.has(s.id)), [skus, usedSkuIds]);
+  const [skuId, setSkuId] = useState("all");
 
   type SaleRow = {
     id: string;
@@ -326,32 +278,8 @@ export default function SalesPage() {
     gross_margin_unit: string;
     gross_profit: string;
   };
-  const [rows, setRows] = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  async function deleteEvent(id: string) {
-  if (!token) return;
-  if (!confirm("Are you sure you want to delete this event?")) return;
-
-  try {
-    const res = await fetch(`${API_BASE}/api/events/${id}/`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Delete failed (${res.status}) ${text}`);
-    }
-
-    setEvents(prev => prev.filter(e => e.id !== id));
-
-    setEventId(prev => (prev === id ? "" : prev));
-    await fetchSales();
-  } catch (e: any) {
-    alert(e.message || "Failed to delete event");
-  }
-}
 
   useEffect(() => {
     if (status !== "authenticated" || !token) return;
@@ -363,15 +291,25 @@ export default function SalesPage() {
       .catch(() => setError("Failed to load events"));
   }, [API_BASE, status, token]);
 
+  useEffect(() => {
+    if (status !== "authenticated" || !token) return;
+    fetch(`${API_BASE}/api/skus/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then(setSkus)
+      .catch(() => setError("Failed to load SKUs"));
+  }, [API_BASE, status, token]);
+
   const query = useMemo(() => {
     const p = new URLSearchParams();
-    if (eventId) p.set("event", eventId);
-    if (year) p.set("year", year);
-    if (month) p.set("month", month);
-    if (type) p.set("type", type);
-    if (bundle) p.set("bundle", bundle);
+    if (eventId && eventId !== "all") p.set("event", eventId);
+    if (year && year !== "all") p.set("year", year);
+    if (type && type !== "all") p.set("type", type);
+    if (bundle && bundle !== "all") p.set("bundle", bundle);
+    if (skuId && skuId !== "all") p.set("sku", skuId);
     return p.toString();
-  }, [eventId, year, month, type, bundle]);
+  }, [eventId, year, type, bundle, skuId]);
 
   const fetchSales = async () => {
     if (status !== "authenticated" || !token) {
@@ -422,107 +360,128 @@ export default function SalesPage() {
   }, [rows, sortKey, sortDir]);
 
   const resetFilters = () => {
-    setEventId("");
-    setYear("");
-    setMonth("");
-    setType("");
-    setBundle("");
+    setEventId("all");
+    setYear("all");
+    setType("all");
+    setBundle("all");
+    setSkuId("all");
   };
 
   return (
-    <main className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Sales</h1>
-        <div className="flex gap-2">
+    <>
+      {status === "authenticated" && <Navbar />}
+      <main className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
           <AddSaleDialog
             token={token}
             apiBase={API_BASE}
             events={events}
             onCreated={(row: any) => setRows((prev) => [row, ...prev])}
+            setEvents={setEvents}
+            rows={rows}
           />
-          <Button
-            variant="secondary"
-            onClick={() => (location.href = "/login")}
-          >
-            Login
-          </Button>
-          <Button onClick={() => signOut({ callbackUrl: "/login" })}>
-            Sign out
-          </Button>
+          {status !== "authenticated" && (
+            <Button variant="secondary" onClick={() => (location.href = "/login")}> 
+              Login
+            </Button>
+          )}
         </div>
-      </div>
 
       {/* Filters */}
-      <div className="grid gap-3 md:grid-cols-6 border rounded-2xl p-4">
-        <div className="col-span-2">
-          <label className="text-sm font-medium">Event</label>
-          <select
-            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            value={eventId}
-            onChange={(e) => setEventId(e.target.value)}
-          >
-            <option value="">All</option>
-            {events.map((ev) => (
-              <option key={ev.id} value={ev.id}>
-                {ev.name}
-              </option>
-            ))}
-          </select>
+      <div className="grid gap-3 md:grid-cols-7 border rounded-2xl p-4">
+        <div className="col-span-2 flex flex-col">
+          <label className="text-sm font-medium mb-1">Event</label>
+          <Select value={eventId} onValueChange={setEventId}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select event" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {events.map((ev) => (
+                <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <label className="text-sm font-medium">Year</label>
-          <input
-            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            placeholder="YYYY"
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-          />
+        <div className="flex flex-col">
+          <label className="text-sm font-medium mb-1">SKU</label>
+          <Select value={skuId} onValueChange={setSkuId}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select SKU" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {skus.map((sku: SKUOpt) => (
+                <SelectItem key={sku.id} value={sku.id}>
+                  {sku.name}{" "}
+                  <span className="text-muted-foreground">
+                    ({sku.item_type})
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <label className="text-sm font-medium">Month</label>
-          <input
-            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            placeholder="1-12"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-          />
+        <div className="flex flex-col">
+          <label className="text-sm font-medium mb-1">Year</label>
+          <Select value={year} onValueChange={setYear}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select year" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {[...Array.from(new Set(
+                events.map(ev => {
+                  if (ev.start_date) return String(ev.start_date).slice(0, 4);
+                  const match = ev.name?.match(/\d{4}/);
+                  return match ? match[0] : "";
+                })
+              ))]
+                .filter(y => y && y.length === 4 && !isNaN(Number(y)))
+                .sort((a, b) => Number(b) - Number(a))
+                .map(y => (
+                  <SelectItem key={y} value={y}>{y}</SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <label className="text-sm font-medium">Type</label>
-          <select
-            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-          >
-            <option value="">All</option>
-            <option value="print">Print</option>
-            <option value="keychain">Keychain</option>
-            <option value="sticker">Sticker</option>
-            <option value="other">Other</option>
-          </select>
+        <div className="flex flex-col">
+          <label className="text-sm font-medium mb-1">Type</label>
+          <Select value={type} onValueChange={setType}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="print">Print</SelectItem>
+              <SelectItem value="keychain">Keychain</SelectItem>
+              <SelectItem value="sticker">Sticker</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <label className="text-sm font-medium">Bundle</label>
-          <select
-            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-            value={bundle}
-            onChange={(e) => setBundle(e.target.value)}
-          >
-            <option value="">All</option>
-            <option value="true">Yes</option>
-            <option value="false">No</option>
-          </select>
+        <div className="flex flex-col">
+          <label className="text-sm font-medium mb-1">Bundle</label>
+          <Select value={bundle} onValueChange={setBundle}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select bundle" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="true">Yes</SelectItem>
+              <SelectItem value="false">No</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <div className="md:col-span-6 flex gap-2">
-          <Button onClick={fetchSales} disabled={loading}>
+        <div className="md:col-span-7 flex gap-2 mt-auto">
+          <Button className="w-full md:w-auto" onClick={fetchSales} disabled={loading}>
             {loading ? "Loading..." : "Apply Filters"}
           </Button>
-          <Button variant="secondary" onClick={resetFilters}>
+          <Button className="w-full md:w-auto" variant="secondary" onClick={resetFilters}>
             Reset
           </Button>
         </div>
       </div>
-
 
       {error && (
         <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700">
@@ -565,28 +524,169 @@ export default function SalesPage() {
           </TableHeader>
           <TableBody>
             {sorted.map((r: any) => {
-              const gp = Number(r.gross_profit);
-              return (
+              const isEditing = editRowId === r.id;
+              const gp = Number(isEditing ? editRow?.gross_profit : r.gross_profit);
+              return isEditing ? (
+                <TableRow key={r.id} className={gp < 0 ? "bg-red-50" : ""}>
+                  <TableCell>
+                    <Input
+                      type="date"
+                      value={editRow.sale_date}
+                      onChange={e => setEditRow({ ...editRow, sale_date: e.target.value })}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={editRow.event?.id || r.event.id}
+                      onValueChange={v => setEditRow({ ...editRow, event: { ...editRow.event, id: v }, event_id: v })}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Event" /></SelectTrigger>
+                      <SelectContent>
+                        {events.map(ev => (
+                          <SelectItem key={ev.id} value={ev.id}>{ev.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={editRow.sku?.item_type || r.sku.item_type}
+                      onValueChange={v => setEditRow({ ...editRow, sku: { ...editRow.sku, item_type: v } })}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="print">Print</SelectItem>
+                        <SelectItem value="keychain">Keychain</SelectItem>
+                        <SelectItem value="sticker">Sticker</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={editRow.sku?.id || r.sku.id}
+                      onValueChange={v => {
+                        const sku = skus.find(s => s.id === v);
+                        setEditRow({ ...editRow, sku: sku ? { ...sku } : { id: v }, sku_id: v });
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="SKU" /></SelectTrigger>
+                      <SelectContent>
+                        {skus
+                          .filter(s => (editRow.sku?.item_type || r.sku.item_type) === s.item_type)
+                          .map(s => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={editRow.units}
+                      onChange={e => setEditRow({ ...editRow, units: Number(e.target.value) })}
+                      className="w-16 text-right"
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Input
+                      value={editRow.price_unit}
+                      onChange={e => setEditRow({ ...editRow, price_unit: e.target.value })}
+                      className="w-20 text-right"
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Input
+                      value={editRow.cost_unit}
+                      onChange={e => setEditRow({ ...editRow, cost_unit: e.target.value })}
+                      className="w-20 text-right"
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">${r.revenue}</TableCell>
+                  <TableCell className="text-right">${r.cogs}</TableCell>
+                  <TableCell className={`text-right font-medium ${gp > 0 ? "text-emerald-700" : "text-red-700"}`}>
+                    ${r.gross_profit}
+                  </TableCell>
+                  <TableCell>
+                    <select
+                      value={editRow.is_bundle ? "Y" : "N"}
+                      onChange={e => setEditRow({ ...editRow, is_bundle: e.target.value === "Y" })}
+                      className="border rounded px-1"
+                    >
+                      <option value="N">N</option>
+                      <option value="Y">Y</option>
+                    </select>
+                  </TableCell>
+                  <TableCell>
+                    <Button size="sm" onClick={async () => {
+                      // Save edit
+                      try {
+                        const res = await fetch(`${API_BASE}/api/sales/${r.id}/`, {
+                          method: "PATCH",
+                          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            event_id: r.event.id,
+                            sku_id: r.sku.id,
+                            sale_date: editRow.sale_date,
+                            units: editRow.units,
+                            price_unit: editRow.price_unit,
+                            cost_unit: editRow.cost_unit,
+                            is_bundle: editRow.is_bundle,
+                          })
+                        });
+                        if (!res.ok) throw new Error();
+                        const updated = await res.json();
+                        setRows(rows => rows.map(row => row.id === r.id ? { ...row, ...updated } : row));
+                        setEditRowId(null);
+                        setEditRow(null);
+                      } catch {
+                        alert("Failed to save changes");
+                      }
+                    }}>Save</Button>
+                    <Button size="sm" variant="secondary" onClick={() => { setEditRowId(null); setEditRow(null); }}>Cancel</Button>
+                  </TableCell>
+                </TableRow>
+              ) : (
                 <TableRow key={r.id} className={gp < 0 ? "bg-red-50" : ""}>
                   <TableCell>{r.sale_date}</TableCell>
                   <TableCell>{r.event.name}</TableCell>
-                  <TableCell className="capitalize">
-                    {r.sku.item_type}
-                  </TableCell>
+                  <TableCell className="capitalize">{r.sku.item_type}</TableCell>
                   <TableCell>{r.sku.name}</TableCell>
                   <TableCell className="text-right">{r.units}</TableCell>
                   <TableCell className="text-right">${r.price_unit}</TableCell>
                   <TableCell className="text-right">${r.cost_unit}</TableCell>
                   <TableCell className="text-right">${r.revenue}</TableCell>
                   <TableCell className="text-right">${r.cogs}</TableCell>
-                  <TableCell
-                    className={`text-right font-medium ${
-                      gp > 0 ? "text-emerald-700" : "text-red-700"
-                    }`}
-                  >
-                    ${r.gross_profit}
-                  </TableCell>
+                  <TableCell className={`text-right font-medium ${gp > 0 ? "text-emerald-700" : "text-red-700"}`}>${r.gross_profit}</TableCell>
                   <TableCell>{r.is_bundle ? "Y" : "N"}</TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => { setEditRowId(r.id); setEditRow({ ...r }); }}>
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={async () => {
+                          if (!confirm("Delete this sale?")) return;
+                          try {
+                            const res = await fetch(`${API_BASE}/api/sales/${r.id}/`, {
+                              method: "DELETE",
+                              headers: { Authorization: `Bearer ${token}` },
+                            });
+                            if (!res.ok) throw new Error();
+                            setRows(rows => rows.filter(row => row.id !== r.id));
+                          } catch {
+                            alert("Failed to delete sale");
+                          }
+                        }} className="text-red-600 focus:text-red-700">
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
               );
             })}
@@ -603,6 +703,7 @@ export default function SalesPage() {
           </TableBody>
         </Table>
       </div>
-    </main>
+      </main>
+    </>
   );
 }

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
+
 export type CreateSKUDialogProps = {
   token?: string;
   apiBase: string;
@@ -92,6 +93,7 @@ export default function CreateSKUDialog({
         <DialogHeader>
           <DialogTitle>New SKU</DialogTitle>
         </DialogHeader>
+
 
         {err && (
           <div className="text-sm text-red-600 border border-red-200 bg-red-50 p-2 rounded">

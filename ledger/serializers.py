@@ -4,8 +4,17 @@ from decimal import Decimal
 from .models import Event, SKU, SaleLine
 
 class ObjectIdField(serializers.Field):
-    def to_representation(self, value): return str(value.id) if hasattr(value, "id") else str(value)
-    def to_internal_value(self, data): return ObjectId(str(data))
+    def to_representation(self, value):
+        return str(value.id) if hasattr(value, "id") else str(value)
+
+    def to_internal_value(self, data):
+        from bson.errors import InvalidId
+        if not data or str(data).strip() == "":
+            raise serializers.ValidationError("This field is required and must be a valid ObjectId.")
+        try:
+            return ObjectId(str(data))
+        except (InvalidId, TypeError, ValueError):
+            raise serializers.ValidationError(f"'{data}' is not a valid ObjectId.")
 
 class EventSerializer(serializers.Serializer):
     id = ObjectIdField(read_only=True)
@@ -23,6 +32,17 @@ class SKUSerializer(serializers.Serializer):
     def create(self, data): return SKU(**data).save()
 
 class SaleLineSerializer(serializers.Serializer):
+    def update(self, instance, validated_data):
+        # Update event and sku if provided
+        if "event_id" in validated_data:
+            instance.event = Event.objects.get(id=validated_data.pop("event_id"))
+        if "sku_id" in validated_data:
+            instance.sku = SKU.objects.get(id=validated_data.pop("sku_id"))
+        # Update other fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
     id = ObjectIdField(read_only=True)
     event_id = ObjectIdField(write_only=True)
     sku_id = ObjectIdField(write_only=True)

@@ -1,6 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
+import type { SKUOpt } from "@/lib/types";
+import dynamic from "next/dynamic";
+
+const Navbar = dynamic(() => import("@/_components/Navbar"), { ssr: false });
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,16 +12,22 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 
 type EventOpt = { id: string; name: string; start_date?: string; end_date?: string };
-type SKU = { id: string; name: string; item_type: string; default_price?: string; default_cost?: string };
+
+type SaleRow = {
+  id: string;
+  sku: SKUOpt;
+  // ...other fields not needed for filtering
+};
 
 export default function SettingsPage() {
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
   const { data: session, status } = useSession();
   const token = (session as any)?.accessToken as string | undefined;
 
-  const [skus, setSkus] = useState<SKU[]>([]);
+  const [skus, setSkus] = useState<SKUOpt[]>([]);
   const [events, setEvents] = useState<EventOpt[]>([]);
   const signedIn = status === "authenticated" && !!token;
+  const [sales, setSales] = useState<SaleRow[]>([]);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -40,30 +50,29 @@ export default function SettingsPage() {
 
     (async () => {
       try {
-        const [skusRes, eventsRes] = await Promise.all([
+        const [skusRes, eventsRes, salesRes] = await Promise.all([
           fetch(`${API_BASE}/api/skus/`, { headers }),
           fetch(`${API_BASE}/api/events/`, { headers }),
+          fetch(`${API_BASE}/api/sales/`, { headers }),
         ]);
 
         const skusData = await safeJson(skusRes);
         const eventsData = await safeJson(eventsRes);
+        const salesData = await safeJson(salesRes);
 
-        console.log("[Settings] /api/skus ->", skusRes.status, skusData);
-        console.log("[Settings] /api/events ->", eventsRes.status, eventsData);
-
-        // If not OK, keep arrays empty (prevents .map crash)
-        setSkus(skusRes.ok ? normalizeArray(skusData) : []);
+    setSkus(skusRes.ok ? normalizeArray(skusData) : [] as SKUOpt[]);
         setEvents(eventsRes.ok ? normalizeArray(eventsData) : []);
+        setSales(salesRes.ok ? normalizeArray(salesData) : []);
       } catch (e) {
-        console.error("[Settings] load error:", e);
         setSkus([]);
         setEvents([]);
+        setSales([]);
       }
     })();
   }, [signedIn, API_BASE, token]);
 
   // --- SKU handlers
-  async function saveSku(sku: SKU) {
+  async function saveSku(sku: SKUOpt) {
     const res = await fetch(`${API_BASE}/api/skus/${sku.id}/`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -95,77 +104,90 @@ export default function SettingsPage() {
   }
 
 
+  // Compute set of SKU IDs used in sales
+  const usedSkuIds = useMemo(() => {
+    return new Set(sales.map(s => s.sku?.id).filter(Boolean));
+  }, [sales]);
+
+  // Only show SKUs that are used in sales
+  const filteredSkus = useMemo(() => {
+    return skus.filter(s => usedSkuIds.has(s.id));
+  }, [skus, usedSkuIds]);
+
   return (
-    <main className="p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+    <>
+      {signedIn && <Navbar />}
+      <main className="p-6 space-y-6">
+        <h1 className="text-2xl font-semibold">Settings</h1>
 
-      {/* SKUs */}
-      <section className="mt-4">
-        <h2 className="text-xl font-semibold mb-2">SKUs</h2>
-        {!signedIn ? (
-          <p className="text-sm text-muted-foreground">Sign in to manage SKUs.</p>
-        ) : (
-          <div className="space-y-3">
-            {Array.isArray(skus) && skus.length > 0 ? (
-              skus.map((s, idx) => (
-                <div key={s.id} className="grid grid-cols-5 gap-2 items-center border rounded-xl p-3">
-                  <div className="col-span-3">
-                    <Label className="text-xs">Name</Label>
-                    <Input
-                      value={s.name}
-                      onChange={(e)=>{
-                        const name = e.target.value;
-                        setSkus(prev => prev.map((x,i)=> i===idx ? {...x, name} : x));
-                      }}
-                    />
+        {/* SKUs */}
+        <section className="mt-4">
+          <h2 className="text-xl font-semibold mb-2">SKUs</h2>
+          {!signedIn ? (
+            <p className="text-sm text-muted-foreground">Sign in to manage SKUs.</p>
+          ) : (
+            <div className="space-y-3">
+              {Array.isArray(filteredSkus) && filteredSkus.length > 0 ? (
+                filteredSkus.map((s, idx) => (
+                  <div key={s.id} className="grid grid-cols-5 gap-2 items-center border rounded-xl p-3">
+                    <div className="col-span-3">
+                      <Label className="text-xs">Name</Label>
+                      <Input
+                        value={s.name}
+                        onChange={(e)=>{
+                          const name = e.target.value;
+                          setSkus(prev => prev.map((x,i)=> x.id===s.id ? {...x, name} : x));
+                        }}
+                      />
+                    </div>
+                    <div className="text-sm">{s.item_type}</div>
+                    <div className="flex gap-2 justify-end">
+                      <Button size="sm" onClick={()=>saveSku(s)}>Save</Button>
+                      <Button size="sm" variant="destructive" onClick={()=>deleteSku(s.id)}>Delete</Button>
+                    </div>
                   </div>
-                  <div className="text-sm">{s.item_type}</div>
-                  <div className="flex gap-2 justify-end">
-                    <Button size="sm" onClick={()=>saveSku(s)}>Save</Button>
-                    <Button size="sm" variant="destructive" onClick={()=>deleteSku(s.id)}>Delete</Button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">No SKUs yet.</p>
-            )}
-          </div>
-        )}
-      </section>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No SKUs with sales yet.</p>
+              )}
+            </div>
+          )}
+        </section>
 
-      {/* Events */}
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold mb-2">Events</h2>
-        {!signedIn ? (
-          <p className="text-sm text-muted-foreground">Sign in to manage events.</p>
-        ) : (
-          <div className="space-y-3">
-            {Array.isArray(events) && events.length > 0 ? (
-              events.map((ev, idx) => (
-                <div key={ev.id} className="grid grid-cols-5 gap-2 items-center border rounded-xl p-3">
-                  <div className="col-span-3">
-                    <Label className="text-xs">Name</Label>
-                    <Input
-                      value={ev.name}
-                      onChange={(e)=>{
-                        const name = e.target.value;
-                        setEvents(prev => prev.map((x,i)=> i===idx ? {...x, name} : x));
-                      }}
-                    />
+        {/* Events */}
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold mb-2">Events</h2>
+          {!signedIn ? (
+            <p className="text-sm text-muted-foreground">Sign in to manage events.</p>
+          ) : (
+            <div className="space-y-3">
+              {Array.isArray(events) && events.length > 0 ? (
+                events.map((ev, idx) => (
+                  <div key={ev.id} className="grid grid-cols-5 gap-2 items-center border rounded-xl p-3">
+                    <div className="col-span-3">
+                      <Label className="text-xs">Name</Label>
+                      <Input
+                        value={ev.name}
+                        onChange={(e)=>{
+                          const name = e.target.value;
+                          setEvents(prev => prev.map((x,i)=> i===idx ? {...x, name} : x));
+                        }}
+                      />
+                    </div>
+                    <div className="text-sm col-span-1 opacity-60">ID: {ev.id.slice(0,6)}…</div>
+                    <div className="flex gap-2 justify-end">
+                      <Button size="sm" onClick={()=>saveEvent(ev)}>Save</Button>
+                      <Button size="sm" variant="destructive" onClick={()=>deleteEvent(ev.id)}>Delete</Button>
+                    </div>
                   </div>
-                  <div className="text-sm col-span-1 opacity-60">ID: {ev.id.slice(0,6)}…</div>
-                  <div className="flex gap-2 justify-end">
-                    <Button size="sm" onClick={()=>saveEvent(ev)}>Save</Button>
-                    <Button size="sm" variant="destructive" onClick={()=>deleteEvent(ev.id)}>Delete</Button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">No events yet.</p>
-            )}
-          </div>
-        )}
-      </section>
-    </main>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No events yet.</p>
+              )}
+            </div>
+          )}
+        </section>
+      </main>
+    </>
   );
 }
