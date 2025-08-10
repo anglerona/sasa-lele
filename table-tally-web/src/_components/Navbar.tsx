@@ -14,6 +14,9 @@ export default function Navbar() {
           <Link href="/settings">
             <Button variant="ghost">Settings</Button>
           </Link>
+          <Link href="/data">
+            <Button variant="ghost">Data</Button>
+          </Link>
         </div>
       </div>
       <Button variant="outline" onClick={() => signOut({ callbackUrl: "/login" })}>
