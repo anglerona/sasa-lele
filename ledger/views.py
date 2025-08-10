@@ -9,29 +9,50 @@ from .serializers import EventSerializer, SKUSerializer, SaleLineSerializer
 from bson import ObjectId
 
 class EventListCreate(APIView):
-    def get(self, req): return Response(EventSerializer(Event.objects, many=True).data)
+    def get(self, req):
+        username = req.user.username if req.user and req.user.is_authenticated else None
+        qs = Event.objects(user=username) if username else Event.objects.none()
+        return Response(EventSerializer(qs, many=True).data)
     def post(self, req):
-        s = EventSerializer(data=req.data); s.is_valid(raise_exception=True)
-        return Response(EventSerializer(s.save()).data, status=status.HTTP_201_CREATED)
+        username = req.user.username if req.user and req.user.is_authenticated else None
+        data = {**req.data}
+        s = EventSerializer(data=data, context={"user": username})
+        s.is_valid(raise_exception=True)
+        obj = s.save()
+        return Response(EventSerializer(obj).data, status=status.HTTP_201_CREATED)
     
 
 
 class SKUListCreate(APIView):
+    from rest_framework.permissions import IsAuthenticated
+    permission_classes = [IsAuthenticated]
+
     def get(self, req):
-        return Response(SKUSerializer(SKU.objects, many=True).data)
+        username = req.user.username if req.user and req.user.is_authenticated else None
+        qs = SKU.objects(user=username) if username else SKU.objects.none()
+        return Response(SKUSerializer(qs, many=True).data)
+
     def post(self, req):
         from mongoengine.errors import NotUniqueError
-        s = SKUSerializer(data=req.data)
+        if not req.user or not req.user.is_authenticated:
+            print("[SKU POST] Not authenticated")
+            return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
+        username = req.user.username
+        print(f"[SKU POST] Creating SKU for user: {username!r}")
+        data = {**req.data, "user": username}
+        s = SKUSerializer(data=data, context={"user": username})
         s.is_valid(raise_exception=True)
         try:
             sku = s.save()
         except NotUniqueError:
+            print(f"[SKU POST] NotUniqueError for user={username!r}, name={data.get('name')!r}, item_type={data.get('item_type')!r}")
             return Response({"detail": "A SKU with this name and type already exists."}, status=status.HTTP_400_BAD_REQUEST)
         return Response(SKUSerializer(sku).data, status=status.HTTP_201_CREATED)
 
 class SaleListCreate(APIView):
     def get(self, req):
-        qs = SaleLine.objects
+        username = req.user.username if req.user and req.user.is_authenticated else None
+        qs = SaleLine.objects(user=username) if username else SaleLine.objects.none()
         if e := req.GET.get("event"):
             try:
                 qs = qs.filter(event=ObjectId(e))
@@ -93,7 +114,9 @@ class SaleListCreate(APIView):
         return Response(SaleLineSerializer(qs, many=True).data)
 
     def post(self, req):
-        s = SaleLineSerializer(data=req.data)
+        username = req.user.username if req.user and req.user.is_authenticated else None
+        data = {**req.data}
+        s = SaleLineSerializer(data=data, context={"user": username})
         s.is_valid(raise_exception=True)
         obj = s.save()
         return Response(SaleLineSerializer(obj).data, status=status.HTTP_201_CREATED)

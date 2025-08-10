@@ -21,7 +21,10 @@ class EventSerializer(serializers.Serializer):
     name = serializers.CharField()
     start_date = serializers.DateField(required=False, allow_null=True)
     end_date = serializers.DateField(required=False, allow_null=True)
-    def create(self, data): return Event(**data).save()
+    user = serializers.CharField(read_only=True)
+    def create(self, data):
+        user = self.context.get('user')
+        return Event(user=user, **data).save()
 
 class SKUSerializer(serializers.Serializer):
     id = ObjectIdField(read_only=True)
@@ -29,7 +32,16 @@ class SKUSerializer(serializers.Serializer):
     item_type = serializers.ChoiceField(choices=("print","keychain","sticker","other"))
     default_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     default_cost = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-    def create(self, data): return SKU(**data).save()
+    user = serializers.CharField(read_only=True)
+
+    def create(self, data):
+        user = self.context.get('user')
+        return SKU(user=user, **data).save()
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['user'] = getattr(instance, 'user', None)
+        return rep
 
 class SaleLineSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
@@ -56,6 +68,7 @@ class SaleLineSerializer(serializers.Serializer):
     bundle_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     is_gift = serializers.BooleanField(default=False)
     notes = serializers.CharField(required=False, allow_blank=True)
+    user = serializers.CharField(read_only=True)
 
     # derived (read-only)
     revenue = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
@@ -64,9 +77,10 @@ class SaleLineSerializer(serializers.Serializer):
     gross_profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     def create(self, data):
+        user = self.context.get('user')
         event = Event.objects.get(id=data.pop("event_id"))
         sku = SKU.objects.get(id=data.pop("sku_id"))
-        return SaleLine(event=event, sku=sku, **data).save()
+        return SaleLine(user=user, event=event, sku=sku, **data).save()
 
     def to_representation(self, instance):
         rep = {

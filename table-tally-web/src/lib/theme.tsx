@@ -2,8 +2,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type ThemeSettings = {
-  bgColor: string;          // hex like #ffffff
-  forceBlackText: boolean;  // true => text-neutral-900
+  bgColor: string;   
+  forceBlackText: boolean; 
   setBgColor: (c: string) => void;
   setForceBlackText: (v: boolean) => void;
 };
@@ -14,7 +14,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [bgColor, setBgColor] = useState("#ffffff");
   const [forceBlackText, setForceBlackText] = useState(false);
 
-  // load from localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem("tt_theme");
@@ -26,7 +25,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
-  // persist + apply css vars
   useEffect(() => {
     try { localStorage.setItem("tt_theme", JSON.stringify({ bgColor, forceBlackText })); } catch {}
     document.documentElement.style.setProperty("--tt-bg", bgColor);

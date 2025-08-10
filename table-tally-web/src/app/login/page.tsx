@@ -42,6 +42,9 @@ export default function LoginPage() {
         </div>
         {error && <div className="text-sm text-red-600">{error}</div>}
         <Button type="submit" disabled={loading} className="w-full">{loading?"Signing in...":"Sign in"}</Button>
+        <div className="text-sm text-center text-muted-foreground pt-2">
+          New user? <a href="/signup" className="underline hover:text-primary">Sign up</a>
+        </div>
       </form>
     </main>
   );

@@ -46,7 +46,6 @@ export function useUserColors() {
       .finally(() => setLoading(false));
   }, [signedIn, API_BASE, token]);
 
-  // Apply as CSS variables
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--user-text-color', userColors.text_color);
