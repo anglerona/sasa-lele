@@ -41,22 +41,7 @@ function currency(n: string | number) {
 }
 
 // Normalize whatever the API returns into a clean array of SKUs
-function normalizeSkus(data: any): SKUOpt[] {
-  const arr = Array.isArray(data)
-    ? data
-    : Array.isArray(data?.results)
-    ? data.results
-    : [];
-  if (!Array.isArray(arr)) return [];
-  // Ensure minimal shape and strings for ids
-  return arr.filter(Boolean).map((s: any) => ({
-    id: String(s.id),
-    name: String(s.name ?? ""),
-    item_type: String(s.item_type ?? "other"),
-    default_price: s.default_price ?? null,
-    default_cost: s.default_cost ?? null,
-  }));
-}
+
 
 export default function AddSaleDialog({
   token,
@@ -67,7 +52,7 @@ export default function AddSaleDialog({
   token?: string;
   apiBase: string;
   events: EventOpt[];
-  onCreated: (row: any) => void;
+  onCreated: (row: unknown) => void;
 }) {
   // DEBUG: show at top of dialog
   const debugInfo = `DEBUG: token=${String(!!token)}, apiBase=${String(apiBase)}`;
@@ -145,8 +130,8 @@ export default function AddSaleDialog({
         // Normalize to array
         const arr = Array.isArray(data)
           ? data
-          : Array.isArray((data as any).results)
-          ? (data as any).results
+          : Array.isArray((data as { results?: unknown[] }).results)
+          ? (data as { results: unknown[] }).results
           : [];
 
         setSkus(arr);
@@ -236,7 +221,7 @@ export default function AddSaleDialog({
         // POST each SKU as a SaleLine
         const results = [];
         for (const row of bundleSkus) {
-          const payload: any = {
+          const payload: Record<string, unknown> = {
             event_id: eventId,
             sku_id: row.skuId,
             sale_date: saleDate,
@@ -268,7 +253,7 @@ export default function AddSaleDialog({
   setBundleId("");
   setNotes("");
       } else {
-        let payload: any = {
+  let payload: Record<string, unknown> = {
           event_id: eventId,
           sku_id: skuId,
           sale_date: saleDate, // YYYY-MM-DD
@@ -299,8 +284,12 @@ export default function AddSaleDialog({
         setIsGift(false);
       }
       setIsBundle(false);
-    } catch (e: any) {
-      setErr(e.message ?? "Failed to create sale");
+  } catch (e: unknown) {
+      if (typeof e === "object" && e && "message" in e) {
+        setErr((e as { message?: string }).message ?? "Failed to create sale");
+      } else {
+        setErr("Failed to create sale");
+      }
     } finally {
       setLoading(false);
     }
