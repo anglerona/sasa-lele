@@ -10,10 +10,11 @@ import DatePicker from "@/components/ui/DatePicker";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
+export type EventOpt = { id: string; name: string };
 export type CreateEventDialogProps = {
   token?: string;
   apiBase: string;
-  onCreated: (event: any) => void;
+  onCreated: (event: EventOpt) => void;
   trigger?: React.ReactNode;
 };
 
@@ -22,7 +23,7 @@ export default function CreateEventDialog({ token, apiBase, onCreated, trigger }
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const today = format(new Date(), "yyyy-MM-dd");
+  // const today = format(new Date(), "yyyy-MM-dd");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
@@ -33,9 +34,9 @@ export default function CreateEventDialog({ token, apiBase, onCreated, trigger }
     setSaving(true);
     setErr(null);
     try {
-      const body: any = { name };
-      if (startDate) body.start_date = startDate;
-      if (endDate) body.end_date = endDate;
+  const body: Record<string, unknown> = { name };
+  if (startDate) body.start_date = startDate;
+  if (endDate) body.end_date = endDate;
       const res = await fetch(`${apiBase}/api/events/`, {
         method: "POST",
         headers: {
@@ -55,8 +56,12 @@ export default function CreateEventDialog({ token, apiBase, onCreated, trigger }
       setStartDate("");
       setEndDate("");
       setErr(null);
-    } catch (e: any) {
-      setErr(e.message ?? "Failed to create event");
+    } catch (e: unknown) {
+      if (typeof e === "object" && e && "message" in e) {
+        setErr((e as { message?: string }).message ?? "Failed to create event");
+      } else {
+        setErr("Failed to create event");
+      }
     } finally {
       setSaving(false);
     }

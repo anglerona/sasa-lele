@@ -253,7 +253,7 @@ export default function AddSaleDialog({
   setBundleId("");
   setNotes("");
       } else {
-  let payload: Record<string, unknown> = {
+  const payload: Record<string, unknown> = {
           event_id: eventId,
           sku_id: skuId,
           sale_date: saleDate, // YYYY-MM-DD

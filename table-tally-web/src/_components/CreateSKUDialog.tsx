@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import type { SKUOpt } from "@/lib/types";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 export type CreateSKUDialogProps = {
   token?: string;
   apiBase: string;
-  onCreated: (sku: any) => void;
+  onCreated: (sku: SKUOpt) => void;
   trigger?: ReactNode;
 };
 
@@ -70,8 +71,12 @@ export default function CreateSKUDialog({
       setPrice("0.00");
       setCost("0.00");
       setErr(null);
-    } catch (e: any) {
-      setErr(e.message ?? "Failed to create SKU");
+    } catch (e: unknown) {
+      if (typeof e === "object" && e && "message" in e) {
+        setErr((e as { message?: string }).message ?? "Failed to create SKU");
+      } else {
+        setErr("Failed to create SKU");
+      }
     } finally {
       setSaving(false);
     }

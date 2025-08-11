@@ -281,7 +281,7 @@ export default function SettingsPage() {
                     token={token}
                     apiBase={API_BASE}
                     onCreated={ev => {
-                      setEvents(prev => [...prev, ev]);
+                      setEvents(prev => [...prev, ev as EventOpt]);
                     }}
                     trigger={<Button type="button" variant="outline">Add Event +</Button>}
                   />

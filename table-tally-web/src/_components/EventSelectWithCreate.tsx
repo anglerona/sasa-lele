@@ -1,5 +1,5 @@
 import { useState } from "react";
-import CreateEventDialog from "@/_components/CreateEventDialog";
+import CreateEventDialog, { EventOpt } from "@/_components/CreateEventDialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -17,11 +17,11 @@ export default function EventSelectWithCreate({
   onChange: (id: string) => void;
   token?: string;
   apiBase: string;
-  onEventCreated?: (ev: { id: string; name: string }) => void;
+  onEventCreated?: (ev: EventOpt) => void;
 }) {
   const [localEvents, setLocalEvents] = useState(events);
 
-  function handleCreated(ev: { id: string; name: string }) {
+  function handleCreated(ev: EventOpt) {
     setLocalEvents((prev) => [...prev, ev]);
     onChange(ev.id);
     onEventCreated?.(ev);
