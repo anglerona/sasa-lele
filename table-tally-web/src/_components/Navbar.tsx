@@ -19,7 +19,7 @@ export default function Navbar() {
           </Link>
         </div>
       </div>
-      <Button variant="outline" onClick={() => signOut({ callbackUrl: "/login" })}>
+      <Button variant="outline" onClick={() => signOut({ callbackUrl: "/" })}>
         Sign out
       </Button>
     </nav>

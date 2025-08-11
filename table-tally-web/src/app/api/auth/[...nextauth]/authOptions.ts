@@ -39,7 +39,7 @@ async function refreshAccessToken(token: any) {
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
+  pages: { signIn: "/" },
   providers: [
     CredentialsProvider({
       name: "Credentials",

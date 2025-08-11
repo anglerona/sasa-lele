@@ -206,7 +206,7 @@ export default function SalesPage() {
             onCreated={(row: any) => setRows((prev) => [row, ...prev])}
           />
           {status !== "authenticated" && (
-            <Button variant="secondary" onClick={() => (location.href = "/login")}> 
+            <Button variant="secondary" onClick={() => (location.href = "/")}> 
               Login
             </Button>
           )}
