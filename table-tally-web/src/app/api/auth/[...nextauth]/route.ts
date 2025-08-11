@@ -37,7 +37,7 @@ async function refreshAccessToken(token: any) {
   }
 }
 
-export const authOptions: NextAuthOptions = {
+const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [
