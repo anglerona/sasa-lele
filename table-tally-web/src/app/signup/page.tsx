@@ -55,7 +55,7 @@ export default function SignupPage() {
         {success && <div className="text-sm text-green-700">{success}</div>}
         <Button type="submit" disabled={loading} className="w-full">{loading ? "Signing up..." : "Sign up"}</Button>
         <div className="text-sm text-center text-muted-foreground pt-2">
-          Already have an account? <a href="/" className="underline hover:text-primary">Sign in</a>
+          Already have an account? <a href="/login" className="underline hover:text-primary">Sign in</a>
         </div>
       </form>
     </main>
