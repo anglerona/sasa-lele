@@ -1,6 +1,6 @@
 import type { NextAuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
+// ...existing code...
 import axios from "axios";
 
 // Extend the User type to include 'access' and 'refresh'
@@ -58,10 +58,7 @@ export const authOptions: NextAuthOptions = {
         }
       },
     }),
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
+  // ...existing code...
   ],
   callbacks: {
     async session({ session, token }) {

@@ -7,6 +7,7 @@ import type { SKUOpt as ImportedSKUOpt } from "@/lib/types";
 import dynamic from "next/dynamic";
 
 type SKUOpt = ImportedSKUOpt & {
+  default_price?: number | string;
   default_cost?: number | string;
 };
 
@@ -31,16 +32,15 @@ type SaleRow = {
 };
 
 export default function SettingsPage() {
-  // Track which event ID was copied for checkmark feedback
-  const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
+  const [editTypes, setEditTypes] = useState<{[type: string]: string}>({});
+
+  const [skus, setSkus] = useState<SKUOpt[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [events, setEvents] = useState<EventOpt[]>([]);
   const { toast } = useToast();
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
   const { data: session, status } = useSession();
   const token = (session as any)?.accessToken as string | undefined;
-
-
-  const [skus, setSkus] = useState<SKUOpt[]>([]);
-  const [events, setEvents] = useState<EventOpt[]>([]);
   const signedIn = status === "authenticated" && !!token;
   const [sales, setSales] = useState<SaleRow[]>([]);
 
@@ -50,6 +50,18 @@ export default function SettingsPage() {
 
   // Get all unique item types from SKUs
   const skuTypes = useMemo<string[]>(() => Array.from(new Set(skus.map((s: SKUOpt) => s.item_type).filter(Boolean) as string[])), [skus]);
+
+  useEffect(() => {
+    setEditTypes(types => {
+      const updated: {[type: string]: string} = {};
+      skuTypes.forEach(type => {
+        updated[type] = types[type] ?? type;
+      });
+      return updated;
+    });
+  }, [skuTypes]);
+  // Track which event ID was copied for checkmark feedback
+  const [copiedEventId, setCopiedEventId] = useState<string | null>(null);
 
   // Set of sold SKU IDs
   const soldSkuIds = useMemo<Set<string>>(() => new Set(sales.map((s: SaleRow) => s.sku?.id).filter(Boolean) as string[]), [sales]);
@@ -86,6 +98,7 @@ export default function SettingsPage() {
     }
 
     (async () => {
+      setLoading(true);
       try {
         const [skusRes, eventsRes, salesRes] = await Promise.all([
           fetch(`${API_BASE}/api/skus/`, { headers }),
@@ -97,13 +110,15 @@ export default function SettingsPage() {
         const eventsData = await safeJson(eventsRes);
         const salesData = await safeJson(salesRes);
 
-    setSkus(skusRes.ok ? normalizeArray(skusData) : [] as SKUOpt[]);
+        setSkus(skusRes.ok ? normalizeArray(skusData) : [] as SKUOpt[]);
         setEvents(eventsRes.ok ? normalizeArray(eventsData) : []);
         setSales(salesRes.ok ? normalizeArray(salesData) : []);
       } catch (e) {
         setSkus([]);
         setEvents([]);
         setSales([]);
+      } finally {
+        setLoading(false);
       }
     })();
   }, [signedIn, API_BASE, token]);
@@ -169,6 +184,7 @@ export default function SettingsPage() {
 
 
   return (
+
     <>
       {signedIn && <Navbar />}
       <main className="p-6 space-y-6">
@@ -177,6 +193,7 @@ export default function SettingsPage() {
           <TabsList>
             <TabsTrigger value="skus">SKUs</TabsTrigger>
             <TabsTrigger value="events">Events</TabsTrigger>
+            <TabsTrigger value="types">Types</TabsTrigger>
           </TabsList>
           <TabsContent value="skus">
             {/* SKUs */}
@@ -203,44 +220,17 @@ export default function SettingsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__all__">All Types</SelectItem>
-                      {skuTypes.map((type: string) => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Label className="text-xs">Sold:</Label>
-                  <Select value={skuSoldFilter} onValueChange={setSkuSoldFilter}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue placeholder="All" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">All</SelectItem>
-                      <SelectItem value="sold">Sold</SelectItem>
-                      <SelectItem value="unsold">Unsold</SelectItem>
+                      {/* Add SKU type filter items here if needed */}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-              {!signedIn ? (
-                <p className="text-sm text-muted-foreground">Sign in to manage SKUs.</p>
-              ) : (
-                <div className="space-y-3">
-                  {Array.isArray(filteredSkus) && filteredSkus.length > 0 ? (
-                    filteredSkus.map((s, idx) => {
-                      // Calculate total units sold for this SKU
-                      const unitsSold = sales.filter(row => row.sku && row.sku.id === s.id).reduce((sum, row) => sum + (row.units || 0), 0);
+                <div className="mt-4 space-y-2">
+                  {filteredSkus.length > 0 ? (
+                    filteredSkus.map((s) => {
+                      const hasSales = sales.some(sale => sale.sku?.id === s.id);
+                      const unitsSold = sales.filter(sale => sale.sku?.id === s.id).reduce((sum, sale) => sum + (sale.units || 0), 0);
                       return (
-                        <div key={s.id} className="grid grid-cols-7 gap-2 items-center border rounded-xl p-3">
-                          <div className="col-span-2">
-                            <Label className="text-xs">Name</Label>
-                            <Input
-                              value={s.name}
-                              onChange={(e)=>{
-                                const name = e.target.value;
-                                setSkus(prev => prev.map((x,i)=> x.id===s.id ? {...x, name} : x));
-                              }}
-                            />
-                          </div>
+                        <div key={s.id} className="grid grid-cols-5 gap-2 items-center border rounded-xl p-3">
                           <div className="text-sm">{s.item_type}</div>
                           <div>
                             <Label className="text-xs">Cost/Unit</Label>
@@ -261,14 +251,23 @@ export default function SettingsPage() {
                             <Button size="sm" onClick={()=>saveSku(s)}>Save</Button>
                             <Button size="sm" variant="destructive" onClick={()=>deleteSku(s.id)}>Delete</Button>
                           </div>
+                          {hasSales && (
+                            <span className="text-xs text-muted-foreground">Cannot delete: sales exist</span>
+                          )}
                         </div>
                       );
                     })
                   ) : (
-                    <p className="text-sm text-muted-foreground">No SKUs yet.</p>
+                    loading ? (
+                      <div className="flex justify-center items-center py-6">
+                        <span className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-t-transparent border-primary"></span>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No SKUs yet.</p>
+                    )
                   )}
                 </div>
-              )}
+              </div>
             </section>
           </TabsContent>
           <TabsContent value="events">
@@ -358,6 +357,91 @@ export default function SettingsPage() {
                   )}
                 </div>
               )}
+            </section>
+          </TabsContent>
+          <TabsContent value="types">
+            <section>
+              <h2 className="text-xl font-semibold mb-4">SKU Types</h2>
+              <div className="space-y-3">
+                {skuTypes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No types found.</p>
+                ) : (
+                  skuTypes.map(type => {
+                    const hasSales = sales.some(s => s.sku?.item_type === type);
+                    return (
+                      <div key={type} className="flex items-center gap-2 border rounded-xl p-3">
+                        <Input
+                          value={editTypes[type] ?? type}
+                          disabled={false}
+                          onChange={e => setEditTypes(et => ({ ...et, [type]: e.target.value }))}
+                          className="w-48"
+                        />
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={editTypes[type] === type}
+                          onClick={async () => {
+                            const affectedSkus = skus.filter(s => s.item_type === type);
+                            let success = true;
+                            for (const sku of affectedSkus) {
+                              try {
+                                const res = await fetch(`${API_BASE}/api/skus/${sku.id}/`, {
+                                  method: "PATCH",
+                                  headers: {
+                                    Authorization: `Bearer ${token}`,
+                                    "Content-Type": "application/json"
+                                  },
+                                  body: JSON.stringify({
+                                    name: sku.name,
+                                    item_type: editTypes[type],
+                                    default_price: sku.default_price,
+                                    default_cost: sku.default_cost
+                                  }),
+                                });
+                                if (!res.ok) throw new Error();
+                              } catch {
+                                success = false;
+                              }
+                            }
+                            if (success) {
+                              toast({ title: "Type updated", type: "success" });
+                              setSkus(prev => prev.map(s => s.item_type === type ? { ...s, item_type: editTypes[type] } : s));
+                              setEditTypes(et => {
+                                const updated = { ...et };
+                                updated[editTypes[type]] = editTypes[type];
+                                delete updated[type];
+                                return updated;
+                              });
+                            } else {
+                              toast({ title: "Failed to update type", type: "error" });
+                            }
+                          }}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={hasSales}
+                          onClick={() => {
+                            setSkus(prev => prev.filter(s => s.item_type !== type));
+                            setEditTypes(et => {
+                              const updated = { ...et };
+                              delete updated[type];
+                              return updated;
+                            });
+                          }}
+                        >
+                          Delete
+                        </Button>
+                        {hasSales && (
+                          <span className="text-xs text-muted-foreground">Cannot delete: sales exist</span>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </section>
           </TabsContent>
         </Tabs>

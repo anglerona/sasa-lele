@@ -11,7 +11,7 @@ class Event(me.Document):
 class SKU(me.Document):
     user = me.StringField(required=True)  # store user id as string
     name = me.StringField(required=True, unique_with=["user", "item_type"])   # e.g., "Keychain-Gojo"
-    item_type = me.StringField(required=True, choices=("print","keychain","sticker","other"))
+    item_type = me.StringField(required=True)
     default_price = me.Decimal128Field(precision=2, default=0)
     default_cost = me.Decimal128Field(precision=2, default=0)
     meta = {"collection": "skus", "indexes": ["user", "item_type", "name"]}

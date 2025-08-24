@@ -29,7 +29,7 @@ class EventSerializer(serializers.Serializer):
 class SKUSerializer(serializers.Serializer):
     id = ObjectIdField(read_only=True)
     name = serializers.CharField()
-    item_type = serializers.ChoiceField(choices=("print","keychain","sticker","other"))
+    item_type = serializers.CharField()
     default_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     default_cost = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
     user = serializers.CharField(read_only=True)

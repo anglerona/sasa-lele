@@ -152,7 +152,11 @@ export default function DataPage() {
       <Navbar />
       <div className="max-w-4xl mx-auto py-8 px-2 space-y-8">
         <h1 className="text-2xl font-bold mb-4">Data & Analytics</h1>
-        {loading ? <div>Loading...</div> : (
+        {loading ? (
+          <div className="flex justify-center items-center py-8">
+            <span className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-t-transparent border-primary"></span>
+          </div>
+        ) : (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <Card className="p-4 h-full flex flex-col justify-center">

@@ -194,6 +194,8 @@ export default function SalesPage() {
     setSkuId("all");
   };
 
+  const skuTypes = useMemo(() => Array.from(new Set(skus.map(s => s.item_type).filter(Boolean))), [skus]);
+
   return (
     <>
       {status === "authenticated" && <Navbar />}
@@ -278,10 +280,9 @@ export default function SalesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
-              <SelectItem value="print">Print</SelectItem>
-              <SelectItem value="keychain">Keychain</SelectItem>
-              <SelectItem value="sticker">Sticker</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
+              {skuTypes.map(typeOpt => (
+                <SelectItem key={typeOpt} value={typeOpt}>{typeOpt}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -540,7 +541,13 @@ export default function SalesPage() {
                   colSpan={11}
                   className="text-center text-sm text-muted-foreground py-6"
                 >
-                  {token ? "No rows." : "Please sign in to view sales."}
+                  {loading ? (
+                    <div className="flex justify-center items-center">
+                      <span className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-t-transparent border-primary"></span>
+                    </div>
+                  ) : (
+                    token ? "No rows." : "Please sign in to view sales."
+                  )}
                 </TableCell>
               </TableRow>
             )}

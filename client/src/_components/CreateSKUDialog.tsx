@@ -36,15 +36,38 @@ export default function CreateSKUDialog({
   const [cost, setCost] = useState("0.00");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [customType, setCustomType] = useState("");
+  const [useCustomType, setUseCustomType] = useState(false);
+  const [skuTypes, setSkuTypes] = useState<string[]>([]);
 
   // make sure this is a strict boolean
-  const canSave = Boolean(token) && Boolean(name.trim()) && Boolean(itemType);
+  const canSave = Boolean(token) && Boolean(name.trim()) && Boolean(useCustomType ? customType.trim() : itemType);
+
+  // Load SKU types when dialog opens
+  async function loadSkuTypes() {
+    try {
+      const res = await fetch(`${apiBase}/api/skus/`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+    const types = Array.from(new Set((Array.isArray(data) ? data : data.results || []).map((s: any) => String(s.item_type)).filter(Boolean)));
+    setSkuTypes(types as string[]);
+    } catch {}
+  }
 
   async function submit() {
     if (!canSave) return;
     setSaving(true);
     setErr(null);
     try {
+      // Prevent duplicate type
+      const typeToUse = useCustomType ? customType.trim() : itemType;
+      if (["print", "keychain", "sticker", "other"].includes(typeToUse.toLowerCase())) {
+        setErr("Type already exists. Please choose a unique type.");
+        setSaving(false);
+        return;
+      }
       const res = await fetch(`${apiBase}/api/skus/`, {
         method: "POST",
         headers: {
@@ -53,7 +76,7 @@ export default function CreateSKUDialog({
         },
         body: JSON.stringify({
           name,
-          item_type: itemType,
+          item_type: typeToUse,
           default_price: asMoney(price),
           default_cost: asMoney(cost),
         }),
@@ -88,6 +111,7 @@ export default function CreateSKUDialog({
       onOpenChange={(v) => {
         setErr(null);
         setOpen(v);
+        if (v) loadSkuTypes();
       }}
     >
       <DialogTrigger asChild>
@@ -122,9 +146,15 @@ export default function CreateSKUDialog({
           <div className="grid gap-1">
             <Label>Type</Label>
             <Select
-              value={itemType}
+              value={useCustomType ? "__custom__" : itemType}
               onValueChange={(v: string) => {
-                setItemType(v);
+                if (v === "__custom__") {
+                  setUseCustomType(true);
+                  setItemType("");
+                } else {
+                  setUseCustomType(false);
+                  setItemType(v);
+                }
                 if (err) setErr(null);
               }}
             >
@@ -132,12 +162,20 @@ export default function CreateSKUDialog({
                 <SelectValue placeholder="Select type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="print">Print</SelectItem>
-                <SelectItem value="keychain">Keychain</SelectItem>
-                <SelectItem value="sticker">Sticker</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
+                {skuTypes.map(type => (
+                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                ))}
+                <SelectItem value="__custom__">Create new type...</SelectItem>
               </SelectContent>
             </Select>
+            {useCustomType && (
+              <Input
+                className="mt-2"
+                value={customType}
+                onChange={e => setCustomType(e.target.value)}
+                placeholder="Enter new type (must be unique)"
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -170,7 +208,7 @@ export default function CreateSKUDialog({
           <Button variant="secondary" onClick={() => setOpen(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!canSave || saving}>
+          <Button onClick={submit} disabled={!canSave || saving || (useCustomType && !customType.trim())}>
             {saving ? "Saving..." : "Save SKU"}
           </Button>
         </DialogFooter>
